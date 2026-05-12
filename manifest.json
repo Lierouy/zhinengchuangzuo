@@ -1,0 +1,10 @@
+{
+  "id": "zhinengchuangzuo",
+  "name": "智能创作",
+  "version": "1.0.3",
+  "minAppVersion": "1.0.0",
+  "description": "智能助手，聊天学习，分析整理，创意生成。",
+  "author": "TalRasha",
+  "authorUrl": "https://github.com/Lierouy",
+  "isDesktopOnly": false
+}

@@ -1,0 +1,26 @@
+# vscode
+.vscode
+
+# userdata
+user_data
+
+# tsconfig
+tsconfig.tsbuildinfo
+
+# Intellij
+*.iml
+.idea
+
+# npm
+node_modules
+
+# Don't include the compiled files in the repo.
+# They should be uploaded to GitHub releases instead.
+main.js
+meta.json
+
+# Exclude sourcemaps
+*.map
+
+# Exclude macOS Finder (System Explorer) View States
+.DS_Store
