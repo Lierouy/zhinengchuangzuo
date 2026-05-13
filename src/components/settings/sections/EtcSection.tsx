@@ -53,7 +53,7 @@ export function EtcSection({ app }: EtcSectionProps) {
 
   return (
     <div className="zncz-settings-section">
-      <div className="zncz-settings-header">其它</div>
+      <div className="zncz-settings-header">其他</div>
 
       <ObsidianSetting
         name="初始化"

@@ -197,7 +197,7 @@ export function ContextManagementSection({
     <div className="zncz-settings-section">
       <div className="zncz-settings-header">上下文系统</div>
       <div className="zncz-settings-desc">
-        根据激活条件动态拼接内容的系统提示。
+        根据匹配条件动态拼接内容的系统提示。
       </div>
 
       <ObsidianSetting

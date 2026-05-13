@@ -257,7 +257,7 @@ function PromptItemFormComponent({
           {/* 连带激活 */}
           <ObsidianSetting
             name="连带激活"
-            desc="如果本提示激活则同时激活其它提示。"
+            desc="如果本提示激活则同时激活其他提示。"
           >
             <div style={{ marginTop: '3px' }} />
             <ObsidianDropdown
