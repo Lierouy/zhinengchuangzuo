@@ -57,12 +57,13 @@ export function ChatSection() {
         <ObsidianTextInput
           type="number"
           value={
-            settings.chatOptions.chatMaxFileChars
-              ? String(settings.chatOptions.chatMaxFileChars)
-              : ''
+            settings.chatOptions.chatMaxFileChars == null
+              ? ''
+              : String(settings.chatOptions.chatMaxFileChars)
           }
           onChange={async (v: string) => {
-            if (v === '') {
+            const trimmed = v.trim()
+            if (trimmed === '') {
               await setSettings({
                 ...settings,
                 chatOptions: {
@@ -71,16 +72,16 @@ export function ChatSection() {
                 },
               })
             } else {
-              const n = Number(v)
-              await setSettings({
-                ...settings,
-                chatOptions: {
-                  ...settings.chatOptions,
-                  chatMaxFileChars: Number.isNaN(n)
-                    ? undefined
-                    : Math.max(0, Math.trunc(n)),
-                },
-              })
+              const n = Number(trimmed)
+              if (!Number.isNaN(n) && n > 0) {
+                await setSettings({
+                  ...settings,
+                  chatOptions: {
+                    ...settings.chatOptions,
+                    chatMaxFileChars: Math.trunc(n),
+                  },
+                })
+              }
             }
           }}
         />

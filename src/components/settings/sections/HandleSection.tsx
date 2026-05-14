@@ -58,21 +58,26 @@ export function HandleSection({
         <div style={{ marginTop: '3px' }} />
         <ObsidianTextInput
           type="number"
-          value={settings.handleMaxLinks ? String(settings.handleMaxLinks) : ''}
+          value={
+            settings.handleMaxLinks == null
+              ? ''
+              : String(settings.handleMaxLinks)
+          }
           onChange={async (v: string) => {
-            if (v === '') {
+            const trimmed = v.trim()
+            if (trimmed === '') {
               await setSettings({
                 ...settings,
                 handleMaxLinks: undefined,
               })
             } else {
-              const n = Number(v)
-              await setSettings({
-                ...settings,
-                handleMaxLinks: Number.isNaN(n)
-                  ? undefined
-                  : Math.max(0, Math.trunc(n)),
-              })
+              const n = Number(trimmed)
+              if (!Number.isNaN(n) && n > 0) {
+                await setSettings({
+                  ...settings,
+                  handleMaxLinks: Math.trunc(n),
+                })
+              }
             }
           }}
         />
@@ -85,21 +90,26 @@ export function HandleSection({
         <div style={{ marginTop: '3px' }} />
         <ObsidianTextInput
           type="number"
-          value={settings.handleMaxChars ? String(settings.handleMaxChars) : ''}
+          value={
+            settings.handleMaxChars == null
+              ? ''
+              : String(settings.handleMaxChars)
+          }
           onChange={async (v: string) => {
-            if (v === '') {
+            const trimmed = v.trim()
+            if (trimmed === '') {
               await setSettings({
                 ...settings,
                 handleMaxChars: undefined,
               })
             } else {
-              const n = Number(v)
-              await setSettings({
-                ...settings,
-                handleMaxChars: Number.isNaN(n)
-                  ? undefined
-                  : Math.max(0, Math.trunc(n)),
-              })
+              const n = Number(trimmed)
+              if (!Number.isNaN(n) && n > 0) {
+                await setSettings({
+                  ...settings,
+                  handleMaxChars: Math.trunc(n),
+                })
+              }
             }
           }}
         />
