@@ -960,7 +960,7 @@ button.zncz-chat-input-model-select {
     }
 
     blockquote {
-      font-size: var(--font-ui-small);
+      font-size: 0.9em;
       margin: 0;
       padding-inline-start: calc(var(--render-scale) * 0.75rem);
       border-left: solid 1px var(--blockquote-border-color);
