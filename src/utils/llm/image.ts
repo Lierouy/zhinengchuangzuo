@@ -152,7 +152,7 @@ function readFileAsDataURL(file: File): Promise<string> {
 export async function fileToMentionableImage(
   file: File,
 ): Promise<MentionableImage> {
-  // ---- 小文件快速路径：FileReader 直接转 base64，无压缩 ----
+  // --- 小文件快速路径：FileReader 直接转 base64，无压缩 ---
   if (file.size <= MAX_IMAGE_SIZE) {
     const dataUrl = await readFileAsDataURL(file)
     const { mimeType } = parseImageDataUrl(dataUrl)
@@ -164,7 +164,7 @@ export async function fileToMentionableImage(
     }
   }
 
-  // ---- 大文件：createImageBitmap 直接解码，跳过 base64 中间层 ----
+  // --- 大文件：createImageBitmap 直接解码，跳过 base64 中间层 ---
   // 避免 FileReader(base64) → parse → Image.decode 的双重编码开销
   let bitmap: ImageBitmap | null = null
   try {

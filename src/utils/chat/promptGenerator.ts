@@ -1,4 +1,4 @@
-import { App, Notice } from 'obsidian'
+import { App, Notice, TFile } from 'obsidian'
 
 import { editorStateToPlainText } from '../../components/chat-input/editor-state-to-plain-text'
 import { ContextManager } from '../../database/context/ContextManager'
@@ -49,10 +49,7 @@ export class PromptGenerator {
     // (compiling files/images for messages that won't be sent is wasteful)
     const relevantMessages = messages.slice(-take)
 
-    // Ensure all relevant user messages have prompt content
-    // and collect matching text from the last user message
-    let matchingText = ''
-    // Find the index of the last user message for matchingText collection
+    // Find last user message and extract currentFile
     let lastUserIndex = -1
     for (let i = relevantMessages.length - 1; i >= 0; i--) {
       if (relevantMessages[i].role === 'user') {
@@ -60,56 +57,46 @@ export class PromptGenerator {
         break
       }
     }
-    const compiledMessages = await Promise.all(
-      relevantMessages.map(async (message, _index) => {
-        if (message.role === 'user' && !message.promptContent) {
-          const { promptContent, matchingText: msgMatchingText } =
-            await this.compileUserMessagePrompt({
-              message,
-            })
-          // Only track matchingText from the last user message
-          if (_index === lastUserIndex) {
-            matchingText = msgMatchingText
-          }
-          return {
-            ...message,
-            promptContent,
-          }
-        }
-        return message
-      }),
-    )
+    let matchingText = ''
 
-    // find last user message
-    let lastUserMessage: ChatUserMessage | undefined = undefined
-    for (let i = compiledMessages.length - 1; i >= 0; --i) {
-      if (compiledMessages[i].role === 'user') {
-        lastUserMessage = compiledMessages[i] as ChatUserMessage
-        break
-      }
-    }
-    if (!lastUserMessage) {
-      throw new Error('No user messages found')
-    }
-
-    // matchingText 已在编译阶段收集（用户输入 + 选中块）
-
-    const currentFile = lastUserMessage.mentionables.find(
+    const lastUserMsg =
+      lastUserIndex >= 0
+        ? (relevantMessages[lastUserIndex] as ChatUserMessage)
+        : undefined
+    const currentFileRaw = lastUserMsg?.mentionables.find(
       (m) => m.type === 'current-file',
     )?.file
-    let currentFileMessage: RequestMessage | undefined
-    if (currentFile && this.settings.chatOptions.includeCurrentFileContent) {
-      const maxChars = this.settings.chatOptions.chatMaxFileChars ?? 100000
-      const fileContent = await readTFileContent(currentFile, this.app.vault)
-      if (fileContent.length > maxChars) {
-        new Notice(
-          `The current file content ${fileContent.length} exceeds the character limit ${maxChars}, cannot be mounted`,
-        )
-      } else {
-        currentFileMessage = {
-          role: 'user',
-          content: `当前文件: ${currentFile.path}\n\`\`\`\n${fileContent}\n\`\`\`\n`,
+    const currentFile =
+      currentFileRaw && this.settings.chatOptions.includeCurrentFileContent
+        ? currentFileRaw
+        : undefined
+
+    // Collect user message indices for sequential compilation (newest → oldest)
+    const userIndices: number[] = []
+    for (let i = 0; i < relevantMessages.length; i++) {
+      if (relevantMessages[i].role === 'user') {
+        userIndices.push(i)
+      }
+    }
+
+    // Compile user messages sequentially: newest first so seenFiles tracks correctly
+    const compiledMessages = [...relevantMessages]
+    const seenFiles = new Set<string>()
+    for (let idx = userIndices.length - 1; idx >= 0; idx--) {
+      const i = userIndices[idx]
+      const msg = compiledMessages[i] as ChatUserMessage
+      if (!msg.promptContent) {
+        const isLatest = idx === userIndices.length - 1
+        const { promptContent, matchingText: mt } =
+          await this.compileUserMessagePrompt({
+            message: msg,
+            currentFile: isLatest ? currentFile : undefined,
+            seenFiles,
+          })
+        if (isLatest) {
+          matchingText = mt
         }
+        compiledMessages[i] = { ...msg, promptContent }
       }
     }
 
@@ -117,7 +104,6 @@ export class PromptGenerator {
 
     const requestMessages: RequestMessage[] = [
       ...(systemMessage ? [systemMessage] : []),
-      ...(currentFileMessage ? [currentFileMessage] : []),
       ...this.getChatHistoryMessages({
         messages: compiledMessages,
       }),
@@ -167,8 +153,12 @@ export class PromptGenerator {
 
   public async compileUserMessagePrompt({
     message,
+    currentFile,
+    seenFiles,
   }: {
     message: ChatUserMessage
+    currentFile?: TFile | null
+    seenFiles?: Set<string>
   }): Promise<{
     promptContent: ChatUserMessage['promptContent']
     matchingText: string
@@ -184,6 +174,20 @@ export class PromptGenerator {
       const MAX_FILE_CHARS =
         this.settings.chatOptions.chatMaxFileChars ?? 100000
 
+      // Step 1.5: Build current-file content prefix (only for latest message)
+      let currentFilePrompt = ''
+      if (currentFile) {
+        const maxChars = this.settings.chatOptions.chatMaxFileChars ?? 100000
+        const content = await readTFileContent(currentFile, this.app.vault)
+        if (content.length <= maxChars) {
+          currentFilePrompt = `<file>\n<title>当前文件: ${currentFile.path}</title>\n<body>\n${content}\n</body>\n</file>\n`
+        } else {
+          new Notice(
+            `The current file content ${content.length} exceeds the character limit ${maxChars}, cannot be mounted`,
+          )
+        }
+      }
+
       const files = message.mentionables
         .filter((m): m is MentionableFile => m.type === 'file')
         .map((m) => m.file)
@@ -194,40 +198,91 @@ export class PromptGenerator {
         getNestedFiles(folder, this.app.vault),
       )
       const allFiles = [...files, ...nestedFiles]
+
+      // Step 1.2: Intra-message dedup by path (first occurrence wins)
+      const dedupedFiles: TFile[] = []
+      const localSeen = new Set<string>()
+      for (const f of allFiles) {
+        if (!localSeen.has(f.path)) {
+          localSeen.add(f.path)
+          dedupedFiles.push(f)
+        }
+      }
+
+      // Step 1.3 + 1.4: Cross-message dedup + current-file annotation
+      const uniqueFiles: TFile[] = []
+      const crossDedupPaths: string[] = []
+      const annotatedCurrentFilePaths: string[] = []
+      const currentFilePath = currentFile?.path
+
+      for (const f of dedupedFiles) {
+        // Step 1.3: Already processed by a newer message → annotate
+        if (seenFiles?.has(f.path)) {
+          crossDedupPaths.push(f.path)
+          continue
+        }
+
+        // Step 1.4: Same as current-file → annotate instead of reading
+        if (currentFilePath && f.path === currentFilePath) {
+          annotatedCurrentFilePaths.push(f.path)
+          seenFiles?.add(f.path)
+          continue
+        }
+
+        uniqueFiles.push(f)
+        seenFiles?.add(f.path)
+      }
+
       const fileContents =
-        allFiles.length > 0
-          ? await readMultipleTFiles(allFiles, this.app.vault)
+        uniqueFiles.length > 0
+          ? await readMultipleTFiles(uniqueFiles, this.app.vault)
           : []
 
-      // Check total chars for file + folder combined
+      // Check total chars for uniqueFiles only
       const totalFileChars = fileContents.reduce((s, c) => s + c.length, 0)
       if (totalFileChars > MAX_FILE_CHARS) {
         throw new Error(
-          `The total number of characters in mounted files and folders ${totalFileChars} exceeds the limit ${MAX_FILE_CHARS}`,
+          `The total number of characters in mounted files ${totalFileChars} exceeds the limit ${MAX_FILE_CHARS}`,
         )
       }
 
-      const filePrompt = allFiles
-        .map((file, index) => {
-          return `${file.path}\n\`\`\`\n${fileContents[index]}\n\`\`\`\n`
-        })
-        .join('---\n')
+      const fileParts: string[] = []
+
+      uniqueFiles.forEach((file, index) => {
+        fileParts.push(
+          `<file>\n<title>${file.path}</title>\n<body>\n${fileContents[index]}\n</body>\n</file>\n`,
+        )
+      })
+      annotatedCurrentFilePaths.forEach((path) => {
+        fileParts.push(
+          `<file>\n<title>${path}</title>\n<span>(当前文件)</span>\n</file>\n`,
+        )
+      })
+      crossDedupPaths.forEach((path) => {
+        fileParts.push(
+          `<file>\n<title>${path}</title>\n<span>(重复提及)</span>\n</file>\n`,
+        )
+      })
 
       const blocks = message.mentionables.filter(
         (m): m is MentionableBlock => m.type === 'block',
       )
-      const blockPrompt = blocks
-        .map(({ file, content }) => {
-          return `${file.path}\n\`\`\`\n${content}\n\`\`\`\n`
-        })
-        .join('---\n')
+      const blockParts = blocks.map(({ file, content }) => {
+        return `<content>\n<title>${file.path}</title>\n<p>\n${content}\n</p>\n</content>\n`
+      })
 
       const imageDataUrls = message.mentionables
         .filter((m): m is MentionableImage => m.type === 'image')
         .map(({ data }) => data)
 
-      // 匹配文本 = 用户输入 + 选中块（不包含 filePrompt）
-      const matchingText = `${blockPrompt}${query}`
+      // 匹配文本 = 用户输入 + 选中块（不包含 filePrompt 和 currentFile 内容）
+      const matchingText = `${blocks.map((b) => b.content).join('\n')}\n${query}`
+
+      const contentParts = [
+        currentFilePrompt,
+        ...fileParts,
+        ...blockParts,
+      ].filter((p) => p.length > 0)
 
       return {
         promptContent: [
@@ -241,7 +296,10 @@ export class PromptGenerator {
           ),
           {
             type: 'text',
-            text: `${filePrompt}${blockPrompt}${query}`,
+            text:
+              contentParts.length > 0
+                ? `${contentParts.join('\n')}\n---\n${query}`
+                : query,
           },
         ],
         matchingText,

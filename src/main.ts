@@ -90,13 +90,24 @@ export default class ZhinengchuangzuoPlugin extends Plugin {
             candidates.push({ raw: m[1].trim(), index: m.index })
           }
 
+          // Raw-level dedup by link text (exclude ./ prefix difference)
+          // before sorting, to avoid redundant parsing of duplicate links
+          const seenRaw = new Set<string>()
+          const uniqueCandidates: { raw: string; index: number }[] = []
+          for (const c of candidates) {
+            const key = c.raw.replace(/^\.\//, '')
+            if (!seenRaw.has(key)) {
+              seenRaw.add(key)
+              uniqueCandidates.push(c)
+            }
+          }
+
           // Preserve appearance order
-          candidates.sort((a, b) => a.index - b.index)
+          uniqueCandidates.sort((a, b) => a.index - b.index)
 
           const resolvedFiles: TFile[] = []
-          const seen = new Set<string>()
 
-          for (const c of candidates) {
+          for (const c of uniqueCandidates) {
             if (resolvedFiles.length >= MAX_LINKS) break
             const linkRaw = c.raw
             const linkPath = linkRaw.replace(/^\.\//, '')
@@ -126,10 +137,8 @@ export default class ZhinengchuangzuoPlugin extends Plugin {
             if (
               target &&
               target.path !== file.path &&
-              target.extension === 'md' &&
-              !seen.has(target.path)
+              target.extension === 'md'
             ) {
-              seen.add(target.path)
               resolvedFiles.push(target)
             }
           }
@@ -167,9 +176,9 @@ export default class ZhinengchuangzuoPlugin extends Plugin {
           }
 
           // Build combined content preserving main file first and linked files in order
-          let combined = `当前文件: ${file.path}\n\`\`\`\n${fileContent}\n\`\`\`\n`
+          let combined = `<file>\n<title>当前文件: ${file.path}</title>\n<body>\n${fileContent}\n</body>\n</file>\n`
           for (let i = 0; i < includedFiles.length; i++) {
-            combined += `---\n关联文件: ${includedFiles[i].path}\n\`\`\`\n${linkedContents[i]}\n\`\`\`\n`
+            combined += `\n<file>\n<title>${includedFiles[i].path}</title>\n<body>\n${linkedContents[i]}\n</body>\n</file>\n`
           }
 
           const chatModel = this.settings.chatModels.find(
