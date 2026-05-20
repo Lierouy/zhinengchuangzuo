@@ -278,10 +278,11 @@ export class PromptGenerator {
       // 匹配文本 = 用户输入 + 选中块（不包含 filePrompt 和 currentFile 内容）
       const matchingText = `${blocks.map((b) => b.content).join('\n')}\n${query}`
 
-      const contentParts = [
+      const textParts = [
         currentFilePrompt,
         ...fileParts,
         ...blockParts,
+        query,
       ].filter((p) => p.length > 0)
 
       return {
@@ -296,10 +297,7 @@ export class PromptGenerator {
           ),
           {
             type: 'text',
-            text:
-              contentParts.length > 0
-                ? `${contentParts.join('\n')}\n${query}`
-                : query,
+            text: textParts.join('\n'),
           },
         ],
         matchingText,
