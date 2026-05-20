@@ -176,9 +176,9 @@ export default class ZhinengchuangzuoPlugin extends Plugin {
           }
 
           // Build combined content preserving main file first and linked files in order
-          let combined = `<file>\n<title>当前文件: ${file.path}</title>\n<body>\n${fileContent}\n</body>\n</file>\n`
+          let combined = `<file type="当前文件">\n<path>${file.path}</path>\n<body>\n${fileContent}\n</body>\n</file>\n`
           for (let i = 0; i < includedFiles.length; i++) {
-            combined += `\n<file>\n<title>${includedFiles[i].path}</title>\n<body>\n${linkedContents[i]}\n</body>\n</file>\n`
+            combined += `\n<file>\n<path>${includedFiles[i].path}</path>\n<body>\n${linkedContents[i]}\n</body>\n</file>\n`
           }
 
           const chatModel = this.settings.chatModels.find(

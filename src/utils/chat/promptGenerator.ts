@@ -180,7 +180,7 @@ export class PromptGenerator {
         const maxChars = this.settings.chatOptions.chatMaxFileChars ?? 100000
         const content = await readTFileContent(currentFile, this.app.vault)
         if (content.length <= maxChars) {
-          currentFilePrompt = `<file>\n<title>当前文件: ${currentFile.path}</title>\n<body>\n${content}\n</body>\n</file>\n`
+          currentFilePrompt = `<file type="当前文件">\n<path>${currentFile.path}</path>\n<body>\n${content}\n</body>\n</file>\n`
         } else {
           new Notice(
             `The current file content ${content.length} exceeds the character limit ${maxChars}, cannot be mounted`,
@@ -250,17 +250,17 @@ export class PromptGenerator {
 
       uniqueFiles.forEach((file, index) => {
         fileParts.push(
-          `<file>\n<title>${file.path}</title>\n<body>\n${fileContents[index]}\n</body>\n</file>\n`,
+          `<file>\n<path>${file.path}</path>\n<body>\n${fileContents[index]}\n</body>\n</file>\n`,
         )
       })
       annotatedCurrentFilePaths.forEach((path) => {
         fileParts.push(
-          `<file>\n<title>${path}</title>\n<span>(当前文件)</span>\n</file>\n`,
+          `<file>\n<path>${path}</path>\n<note>(当前文件)</note>\n</file>\n`,
         )
       })
       crossDedupPaths.forEach((path) => {
         fileParts.push(
-          `<file>\n<title>${path}</title>\n<span>(重复提及)</span>\n</file>\n`,
+          `<file>\n<path>${path}</path>\n<note>(重复提及)</note>\n</file>\n`,
         )
       })
 
@@ -268,7 +268,7 @@ export class PromptGenerator {
         (m): m is MentionableBlock => m.type === 'block',
       )
       const blockParts = blocks.map(({ file, content }) => {
-        return `<content>\n<title>${file.path}</title>\n<p>\n${content}\n</p>\n</content>\n`
+        return `<selected>\n<path>${file.path}</path>\n<p>\n${content}\n</p>\n</selected>\n`
       })
 
       const imageDataUrls = message.mentionables
@@ -298,7 +298,7 @@ export class PromptGenerator {
             type: 'text',
             text:
               contentParts.length > 0
-                ? `${contentParts.join('\n')}\n---\n${query}`
+                ? `${contentParts.join('\n')}\n${query}`
                 : query,
           },
         ],
