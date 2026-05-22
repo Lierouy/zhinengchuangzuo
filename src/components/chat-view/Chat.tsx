@@ -517,6 +517,7 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
             try {
               await promptGenerator.compileUserMessagePrompt({
                 message,
+                isLatest: true,
               })
             } catch (err) {
               new Notice(

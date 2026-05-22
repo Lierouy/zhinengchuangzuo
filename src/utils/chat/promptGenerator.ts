@@ -1,4 +1,4 @@
-import { App, Notice, TFile } from 'obsidian'
+import { App, TFile } from 'obsidian'
 
 import { editorStateToPlainText } from '../../components/chat-input/editor-state-to-plain-text'
 import { ContextManager } from '../../database/context/ContextManager'
@@ -92,6 +92,7 @@ export class PromptGenerator {
             message: msg,
             currentFile: isLatest ? currentFile : undefined,
             seenFiles,
+            isLatest,
           })
         if (isLatest) {
           matchingText = mt
@@ -155,10 +156,12 @@ export class PromptGenerator {
     message,
     currentFile,
     seenFiles,
+    isLatest,
   }: {
     message: ChatUserMessage
     currentFile?: TFile | null
     seenFiles?: Set<string>
+    isLatest: boolean
   }): Promise<{
     promptContent: ChatUserMessage['promptContent']
     matchingText: string
@@ -174,18 +177,11 @@ export class PromptGenerator {
       const MAX_FILE_CHARS =
         this.settings.chatOptions.chatMaxFileChars ?? 100000
 
-      // Step 1.5: Build current-file content prefix (only for latest message)
-      let currentFilePrompt = ''
+      // Step 1.5: Read current-file content (only for latest message)
+      let currentFileContent = ''
       if (currentFile) {
-        const maxChars = this.settings.chatOptions.chatMaxFileChars ?? 100000
-        const content = await readTFileContent(currentFile, this.app.vault)
-        if (content.length <= maxChars) {
-          currentFilePrompt = `<file type="当前文件">\n<path>${currentFile.path}</path>\n<body>\n${content}\n</body>\n</file>\n`
-        } else {
-          new Notice(
-            `The current file content ${content.length} exceeds the character limit ${maxChars}, cannot be mounted`,
-          )
-        }
+        currentFileContent = await readTFileContent(currentFile, this.app.vault)
+        seenFiles?.add(currentFile.path)
       }
 
       const files = message.mentionables
@@ -209,10 +205,9 @@ export class PromptGenerator {
         }
       }
 
-      // Step 1.3 + 1.4: Cross-message dedup + current-file annotation
+      // Step 1.3 + 1.4: Cross-message dedup + current-file silent drop
       const uniqueFiles: TFile[] = []
       const crossDedupPaths: string[] = []
-      const annotatedCurrentFilePaths: string[] = []
       const currentFilePath = currentFile?.path
 
       for (const f of dedupedFiles) {
@@ -222,10 +217,8 @@ export class PromptGenerator {
           continue
         }
 
-        // Step 1.4: Same as current-file → annotate instead of reading
+        // Step 1.4: Same as current-file → silently skip (currentFile already mounted)
         if (currentFilePath && f.path === currentFilePath) {
-          annotatedCurrentFilePaths.push(f.path)
-          seenFiles?.add(f.path)
           continue
         }
 
@@ -238,9 +231,11 @@ export class PromptGenerator {
           ? await readMultipleTFiles(uniqueFiles, this.app.vault)
           : []
 
-      // Check total chars for uniqueFiles only
-      const totalFileChars = fileContents.reduce((s, c) => s + c.length, 0)
-      if (totalFileChars > MAX_FILE_CHARS) {
+      // Unified char check across currentFile + uniqueFiles
+      const totalFileChars =
+        currentFileContent.length +
+        fileContents.reduce((s, c) => s + c.length, 0)
+      if (isLatest && totalFileChars > MAX_FILE_CHARS) {
         throw new Error(
           `The total number of characters in mounted files ${totalFileChars} exceeds the limit ${MAX_FILE_CHARS}`,
         )
@@ -251,11 +246,6 @@ export class PromptGenerator {
       uniqueFiles.forEach((file, index) => {
         fileParts.push(
           `<file>\n<path>${file.path}</path>\n<body>\n${fileContents[index]}\n</body>\n</file>\n`,
-        )
-      })
-      annotatedCurrentFilePaths.forEach((path) => {
-        fileParts.push(
-          `<file>\n<path>${path}</path>\n<note>(当前文件)</note>\n</file>\n`,
         )
       })
       crossDedupPaths.forEach((path) => {
@@ -279,7 +269,9 @@ export class PromptGenerator {
       const matchingText = `${blocks.map((b) => b.content).join('\n')}\n${query}`
 
       const textParts = [
-        currentFilePrompt,
+        currentFile && currentFileContent
+          ? `<file type="当前文件">\n<path>${currentFile.path}</path>\n<body>\n${currentFileContent}\n</body>\n</file>\n`
+          : '',
         ...fileParts,
         ...blockParts,
         query,
