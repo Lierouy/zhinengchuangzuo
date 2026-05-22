@@ -515,10 +515,24 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
         inputChatMessages.map(async (message) => {
           if (message.role === 'user' && message.id === lastMessage.id) {
             try {
-              await promptGenerator.compileUserMessagePrompt({
-                message,
-                isLatest: true,
-              })
+              const currentFileRaw = message.mentionables.find(
+                (m) => m.type === 'current-file',
+              )?.file
+              const currentFile =
+                currentFileRaw && settings.chatOptions.includeCurrentFileContent
+                  ? currentFileRaw
+                  : undefined
+
+              const { promptContent } =
+                await promptGenerator.compileUserMessagePrompt({
+                  message,
+                  currentFile,
+                  isLatest: true,
+                })
+              return {
+                ...message,
+                promptContent,
+              }
             } catch (err) {
               new Notice(
                 err instanceof Error
@@ -526,10 +540,6 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
                   : 'The file content exceeds the limit and cannot be sent',
               )
               throw err
-            }
-            return {
-              ...message,
-              promptContent: null,
             }
           } else if (message.role === 'user' && message.promptContent) {
             return {
@@ -554,6 +564,7 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
       promptGenerator,
       abortActiveStreams,
       setChatMessages,
+      settings.chatOptions.includeCurrentFileContent,
     ],
   )
 
