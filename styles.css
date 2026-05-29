@@ -20,6 +20,7 @@
   display: flex;
   gap: var(--size-2-1);
   justify-content: flex-start;
+
   svg {
     height: var(--icon-l);
     width: var(--icon-l);
@@ -31,6 +32,7 @@
   display: flex;
   gap: var(--size-2-1);
   justify-content: flex-end;
+
   svg {
     height: var(--icon-l);
     width: var(--icon-l);
@@ -51,6 +53,10 @@
 .view-content:has(.zncz-chat-container) {
   padding: 40px 6px 0 10px;
   scrollbar-gutter: stable;
+
+  &::-webkit-scrollbar {
+    width: 12px;
+  }
 }
 
 .zncz-chat-container {
@@ -152,21 +158,6 @@
     resize: none;
     padding: var(--size-4-1) var(--size-2-3);
   }
-}
-
-.zncz-handle-prompt-editor-container {
-  position: sticky;
-  display: block;
-  -webkit-app-region: no-drag;
-  border: 1px solid var(--background-modifier-border);
-  font-family: inherit;
-  padding: var(--size-4-1) var(--size-2-3);
-  font-size: var(--font-ui-small);
-  border-radius: var(--radius-s);
-  outline: none;
-  margin-top: 5px;
-  margin-bottom: 8px;
-  min-height: 160px;
 }
 
 .zncz-user-message-image {
@@ -903,6 +894,11 @@ button.zncz-chat-input-model-select {
   &.markdown-rendered {
     line-height: var(--line-height-normal);
     font-size: calc(var(--render-scale) * var(--font-text-size));
+    --p-spacing: calc(var(--render-scale) * 0.4rem);
+    --heading-spacing: var(--p-spacing);
+    --checkbox-size: calc(var(--render-scale) * 0.9rem);
+    --checkbox-radius: var(--radius-s);
+    --icon-size: calc(var(--render-scale) * var(--icon-xs));
 
     .copy-code-button {
       width: 26px;
@@ -922,12 +918,6 @@ button.zncz-chat-input-model-select {
     &.zncz-scale-base {
       --render-scale: 1;
     }
-
-    --p-spacing: calc(var(--render-scale) * 0.4rem);
-    --heading-spacing: var(--p-spacing);
-    --checkbox-size: calc(var(--render-scale) * 0.9rem);
-    --checkbox-radius: var(--radius-s);
-    --icon-size: calc(var(--render-scale) * var(--icon-xs));
 
     h1 {
       font-size: 1.4em;

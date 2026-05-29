@@ -1,4 +1,3 @@
-import { SerializedEditorState } from 'lexical'
 import {
   Atom,
   FileClock,
@@ -24,6 +23,7 @@ import { useApp } from '../../contexts/app-context'
 import { usePlugin } from '../../contexts/plugin-context'
 import { useSettings } from '../../contexts/settings-context'
 import { getChatModelClient } from '../../core/manager'
+import { TemplateManager } from '../../database/template/TemplateManager'
 import { useChatHistory } from '../../hooks/useChatHistory'
 import {
   AssistantToolMessageGroup,
@@ -102,6 +102,8 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
   const promptGenerator = useMemo(() => {
     return new PromptGenerator(app, settings)
   }, [app, settings])
+
+  const templateManager = useMemo(() => new TemplateManager(app), [app])
 
   const [inputMessage, setInputMessage] = useState<ChatUserMessage>(() => {
     const newMessage = getNewInputMessage(app)
@@ -295,18 +297,21 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
 
         try {
           const rawSettings: ModelSettings = model.settings ?? {}
-          const handlePromptRaw: string | SerializedEditorState =
-            settings.handlePrompt
-          const handlePrompt =
-            typeof handlePromptRaw === 'string'
-              ? handlePromptRaw.trim()
-              : handlePromptRaw
-                ? editorStateToPlainText(handlePromptRaw).trim()
-                : ''
+          const handlePromptId: string = settings.handlePromptId
+          let handlePrompt = ''
+          if (handlePromptId) {
+            const template = await templateManager.findById(handlePromptId)
+            if (template) {
+              handlePrompt = template.content.trim()
+            }
+          }
+          if (!handlePrompt) {
+            new Notice('Select the prompt to use in the settings first')
+            if (isMounted.current) setExternalStreamActive(false)
+            return
+          }
           const messages: RequestMessage[] = [
-            ...(handlePrompt
-              ? [{ role: 'system' as const, content: handlePrompt }]
-              : []),
+            { role: 'system' as const, content: handlePrompt },
             { role: 'user', content: fileContent },
           ]
 
@@ -430,6 +435,7 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
       autoScrollToBottom,
       settings,
       setSettings,
+      templateManager,
     ],
   )
 
@@ -790,12 +796,12 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
 
           <button
             onClick={() => {
-              new HandleSectionModal(app, plugin).open()
+              new ContextManagementModal(app, plugin).open()
             }}
             className="clickable-icon"
-            aria-label="单独处理"
+            aria-label="上下文系统"
           >
-            <Atom size={18} />
+            <Layers size={18} />
           </button>
 
           <button
@@ -810,12 +816,12 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
 
           <button
             onClick={() => {
-              new ContextManagementModal(app, plugin).open()
+              new HandleSectionModal(app, plugin).open()
             }}
             className="clickable-icon"
-            aria-label="上下文系统"
+            aria-label="单独处理"
           >
-            <Layers size={18} />
+            <Atom size={18} />
           </button>
         </div>
 

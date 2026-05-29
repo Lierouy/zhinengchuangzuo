@@ -1,11 +1,12 @@
-import { SerializedEditorState } from 'lexical'
 import { App } from 'obsidian'
+import { useEffect, useMemo, useState } from 'react'
 
 import { useSettings } from '../../../contexts/settings-context'
-import { ObsidianButton } from '../../common/ObsidianButton'
+import { TemplateManager } from '../../../database/template/TemplateManager'
+import { TemplateMetadata } from '../../../database/template/types'
+import { ObsidianDropdown } from '../../common/ObsidianDropdown'
 import { ObsidianSetting } from '../../common/ObsidianSetting'
 import { ObsidianTextInput } from '../../common/ObsidianTextInput'
-import { HandlePromptEditorModal } from '../../modals/HandlePromptEditorModal'
 
 type HandleSectionProps = {
   app: App
@@ -18,13 +19,16 @@ export function HandleSection({
   showRequired = false,
 }: HandleSectionProps) {
   const { settings, setSettings } = useSettings()
+  const templateManager = useMemo(() => new TemplateManager(app), [app])
+  const [templateList, setTemplateList] = useState<TemplateMetadata[]>([])
 
-  const handleSavePrompt = async (newPrompt: SerializedEditorState) => {
-    await setSettings({
-      ...settings,
-      handlePrompt: newPrompt,
-    })
-  }
+  useEffect(() => {
+    templateManager.listTemplates().then(setTemplateList)
+  }, [templateManager])
+
+  const templateOptions = useMemo(() => {
+    return Object.fromEntries(templateList.map((t) => [t.id, t.name]))
+  }, [templateList])
 
   return (
     <div className="zncz-settings-section">
@@ -35,19 +39,18 @@ export function HandleSection({
 
       <ObsidianSetting
         name="处理提示"
-        desc="用于单独处理文件的系统提示，可以使用预设提示。"
+        desc="使用预设提示作为单独处理文件的系统提示。"
         required={showRequired}
       >
-        <ObsidianButton
-          text="编辑"
-          onClick={() => {
-            new HandlePromptEditorModal(
-              app,
-              settings.handlePrompt as SerializedEditorState | string,
-              handleSavePrompt,
-            ).open()
+        <ObsidianDropdown
+          value={settings.handlePromptId}
+          options={templateOptions}
+          onChange={async (v: string) => {
+            await setSettings({
+              ...settings,
+              handlePromptId: v,
+            })
           }}
-          cta
         />
       </ObsidianSetting>
 

@@ -276,12 +276,6 @@ function PromptGroupManageModalComponent({
             <col width="90%" />
             <col width="10%" />
           </colgroup>
-          <thead>
-            <tr>
-              <th>名称</th>
-              <th>操作</th>
-            </tr>
-          </thead>
           <tbody>
             {groupList.map((group) => (
               <tr key={group.id}>
