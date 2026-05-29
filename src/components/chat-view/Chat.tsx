@@ -20,6 +20,7 @@ import {
 import { v4 as uuidv4 } from 'uuid'
 
 import { useApp } from '../../contexts/app-context'
+import { ChatContainerContext } from '../../contexts/chat-container-context'
 import { usePlugin } from '../../contexts/plugin-context'
 import { useSettings } from '../../contexts/settings-context'
 import { getChatModelClient } from '../../core/manager'
@@ -91,6 +92,8 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
   const app = useApp()
   const plugin = usePlugin()
   const { settings, setSettings } = useSettings()
+
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const {
     createOrUpdateConversation,
@@ -756,140 +759,117 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
   }))
 
   return (
-    <div className="zncz-chat-container">
-      <div className="zncz-chat-header">
-        <div className="zncz-chat-header-buttons-left">
-          <button
-            onClick={() => handleNewChat()}
-            className="clickable-icon"
-            aria-label="新会话"
-          >
-            <MessageSquarePlus size={18} />
-          </button>
+    <ChatContainerContext.Provider value={containerRef}>
+      <div className="zncz-chat-container" ref={containerRef}>
+        <div className="zncz-chat-header">
+          <div className="zncz-chat-header-buttons-left">
+            <button
+              onClick={() => handleNewChat()}
+              className="clickable-icon"
+              aria-label="新会话"
+            >
+              <MessageSquarePlus size={18} />
+            </button>
 
-          <ChatListDropdown
-            chatList={chatList}
-            currentConversationId={currentConversationId}
-            onSelect={async (conversationId) => {
-              if (conversationId === currentConversationId) return
-              await handleLoadConversation(conversationId)
-            }}
-            onDelete={async (conversationId) => {
-              await deleteConversation(conversationId)
-              if (conversationId === currentConversationId) {
-                const nextConversation = chatList.find(
-                  (chat) => chat.id !== conversationId,
-                )
-                if (nextConversation) {
-                  void handleLoadConversation(nextConversation.id)
-                } else {
-                  handleNewChat()
-                }
-              }
-            }}
-            onUpdateTitle={async (conversationId, newTitle) => {
-              await updateConversationTitle(conversationId, newTitle)
-            }}
-          >
-            <FileClock size={18} />
-          </ChatListDropdown>
-
-          <button
-            onClick={() => {
-              new ContextManagementModal(app, plugin).open()
-            }}
-            className="clickable-icon"
-            aria-label="上下文系统"
-          >
-            <Layers size={18} />
-          </button>
-
-          <button
-            onClick={() => {
-              new TemplateSectionModal(app).open()
-            }}
-            className="clickable-icon"
-            aria-label="预设提示"
-          >
-            <SwatchBook size={18} />
-          </button>
-
-          <button
-            onClick={() => {
-              new HandleSectionModal(app, plugin).open()
-            }}
-            className="clickable-icon"
-            aria-label="单独处理"
-          >
-            <Atom size={18} />
-          </button>
-        </div>
-
-        <div className="zncz-chat-header-buttons-right">
-          {/* 分页控制 */}
-          <button
-            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-            className="clickable-icon"
-            aria-label="前页"
-            disabled={currentPage <= 1}
-            style={{
-              opacity: currentPage <= 1 ? 0.5 : 1,
-              cursor: currentPage <= 1 ? 'not-allowed' : 'pointer',
-            }}
-          >
-            <StepBack size={18} />
-          </button>
-
-          {/* 页数显示 */}
-          <div className="zncz-chat-header-pagenumber">
-            {currentPage}/{totalPages}
-          </div>
-          <button
-            onClick={() =>
-              setCurrentPage(Math.min(totalPages, currentPage + 1))
-            }
-            className="clickable-icon"
-            aria-label="后页"
-            disabled={currentPage >= totalPages}
-            style={{
-              opacity: currentPage >= totalPages ? 0.5 : 1,
-              cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
-            }}
-          >
-            <StepForward size={18} />
-          </button>
-        </div>
-      </div>
-      <div className="zncz-chat-messages" ref={chatMessagesRef}>
-        {currentPageMessages.map((messageOrGroup, _index) =>
-          !Array.isArray(messageOrGroup) ? (
-            <UserMessageItem
-              key={messageOrGroup.id}
-              message={messageOrGroup}
-              isLoading={submitChatMutation.isPending || externalStreamActive}
-              onDelete={(id) => {
-                setChatMessages((prev) => {
-                  const newMessages = prev.filter((m) => m.id !== id)
-                  const newTotalPages = Math.max(
-                    1,
-                    Math.ceil(
-                      groupAssistantAndToolMessages(newMessages).length /
-                        PAGE_SIZE,
-                    ),
-                  )
-                  if (currentPage > newTotalPages) {
-                    setTimeout(() => setCurrentPage(newTotalPages), 0)
-                  }
-                  return newMessages
-                })
+            <ChatListDropdown
+              chatList={chatList}
+              currentConversationId={currentConversationId}
+              onSelect={async (conversationId) => {
+                if (conversationId === currentConversationId) return
+                await handleLoadConversation(conversationId)
               }}
-              _contextMessages={chatMessages}
-            />
-          ) : (
-            messageOrGroup.map((msg) => (
+              onDelete={async (conversationId) => {
+                await deleteConversation(conversationId)
+                if (conversationId === currentConversationId) {
+                  const nextConversation = chatList.find(
+                    (chat) => chat.id !== conversationId,
+                  )
+                  if (nextConversation) {
+                    void handleLoadConversation(nextConversation.id)
+                  } else {
+                    handleNewChat()
+                  }
+                }
+              }}
+              onUpdateTitle={async (conversationId, newTitle) => {
+                await updateConversationTitle(conversationId, newTitle)
+              }}
+            >
+              <FileClock size={18} />
+            </ChatListDropdown>
+
+            <button
+              onClick={() => {
+                new ContextManagementModal(app, plugin).open()
+              }}
+              className="clickable-icon"
+              aria-label="上下文系统"
+            >
+              <Layers size={18} />
+            </button>
+
+            <button
+              onClick={() => {
+                new TemplateSectionModal(app).open()
+              }}
+              className="clickable-icon"
+              aria-label="预设提示"
+            >
+              <SwatchBook size={18} />
+            </button>
+
+            <button
+              onClick={() => {
+                new HandleSectionModal(app, plugin).open()
+              }}
+              className="clickable-icon"
+              aria-label="单独处理"
+            >
+              <Atom size={18} />
+            </button>
+          </div>
+
+          <div className="zncz-chat-header-buttons-right">
+            {/* 分页控制 */}
+            <button
+              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+              className="clickable-icon"
+              aria-label="前页"
+              disabled={currentPage <= 1}
+              style={{
+                opacity: currentPage <= 1 ? 0.5 : 1,
+                cursor: currentPage <= 1 ? 'not-allowed' : 'pointer',
+              }}
+            >
+              <StepBack size={18} />
+            </button>
+
+            {/* 页数显示 */}
+            <div className="zncz-chat-header-pagenumber">
+              {currentPage}/{totalPages}
+            </div>
+            <button
+              onClick={() =>
+                setCurrentPage(Math.min(totalPages, currentPage + 1))
+              }
+              className="clickable-icon"
+              aria-label="后页"
+              disabled={currentPage >= totalPages}
+              style={{
+                opacity: currentPage >= totalPages ? 0.5 : 1,
+                cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
+              }}
+            >
+              <StepForward size={18} />
+            </button>
+          </div>
+        </div>
+        <div className="zncz-chat-messages" ref={chatMessagesRef}>
+          {currentPageMessages.map((messageOrGroup, _index) =>
+            !Array.isArray(messageOrGroup) ? (
               <UserMessageItem
-                key={msg.id}
-                message={msg}
+                key={messageOrGroup.id}
+                message={messageOrGroup}
                 isLoading={submitChatMutation.isPending || externalStreamActive}
                 onDelete={(id) => {
                   setChatMessages((prev) => {
@@ -907,62 +887,87 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
                     return newMessages
                   })
                 }}
-                _contextMessages={chatMessages}
               />
-            ))
-          ),
-        )}
+            ) : (
+              messageOrGroup.map((msg) => (
+                <UserMessageItem
+                  key={msg.id}
+                  message={msg}
+                  isLoading={
+                    submitChatMutation.isPending || externalStreamActive
+                  }
+                  onDelete={(id) => {
+                    setChatMessages((prev) => {
+                      const newMessages = prev.filter((m) => m.id !== id)
+                      const newTotalPages = Math.max(
+                        1,
+                        Math.ceil(
+                          groupAssistantAndToolMessages(newMessages).length /
+                            PAGE_SIZE,
+                        ),
+                      )
+                      if (currentPage > newTotalPages) {
+                        setTimeout(() => setCurrentPage(newTotalPages), 0)
+                      }
+                      return newMessages
+                    })
+                  }}
+                />
+              ))
+            ),
+          )}
+        </div>
+        <ChatUserInput
+          key={inputMessage.id} // this is needed to clear the editor when the user submits a new message
+          ref={(ref) => registerChatUserInputRef(inputMessage.id, ref)}
+          initialSerializedEditorState={inputMessage.content}
+          onChange={(content) => {
+            setInputMessage((prevInputMessage) => ({
+              ...prevInputMessage,
+              content,
+            }))
+          }}
+          onSubmit={async (content) => {
+            const hasText = editorStateToPlainText(content).trim() !== ''
+            const hasImages = inputMessage.mentionables.some(
+              (m) => m.type === 'image',
+            )
+            const hasSelectedBlocks = inputMessage.mentionables.some(
+              (m) => m.type === 'block',
+            )
+
+            if (!hasText && !hasImages && !hasSelectedBlocks) return
+
+            try {
+              await handleUserMessageSubmit({
+                inputChatMessages: [
+                  ...chatMessages,
+                  { ...inputMessage, content },
+                ],
+              })
+            } catch {
+              // Error already shown by handleUserMessageSubmit, keep input content
+              return
+            }
+            setInputMessage(getNewInputMessage(app))
+          }}
+          onFocus={() => {
+            setFocusedMessageId(inputMessage.id)
+          }}
+          mentionables={inputMessage.mentionables}
+          setMentionables={(mentionables) => {
+            setInputMessage((prevInputMessage) => ({
+              ...prevInputMessage,
+              mentionables,
+            }))
+          }}
+          autoFocus
+          addedBlockKey={addedBlockKey}
+          isLoading={submitChatMutation.isPending || externalStreamActive}
+          onAbort={abortActiveStreams}
+        />
       </div>
-      <ChatUserInput
-        key={inputMessage.id} // this is needed to clear the editor when the user submits a new message
-        ref={(ref) => registerChatUserInputRef(inputMessage.id, ref)}
-        initialSerializedEditorState={inputMessage.content}
-        onChange={(content) => {
-          setInputMessage((prevInputMessage) => ({
-            ...prevInputMessage,
-            content,
-          }))
-        }}
-        onSubmit={async (content) => {
-          const hasText = editorStateToPlainText(content).trim() !== ''
-          const hasImages = inputMessage.mentionables.some(
-            (m) => m.type === 'image',
-          )
-          const hasSelectedBlocks = inputMessage.mentionables.some(
-            (m) => m.type === 'block',
-          )
-
-          if (!hasText && !hasImages && !hasSelectedBlocks) return
-
-          try {
-            await handleUserMessageSubmit({
-              inputChatMessages: [
-                ...chatMessages,
-                { ...inputMessage, content },
-              ],
-            })
-          } catch {
-            // Error already shown by handleUserMessageSubmit, keep input content
-            return
-          }
-          setInputMessage(getNewInputMessage(app))
-        }}
-        onFocus={() => {
-          setFocusedMessageId(inputMessage.id)
-        }}
-        mentionables={inputMessage.mentionables}
-        setMentionables={(mentionables) => {
-          setInputMessage((prevInputMessage) => ({
-            ...prevInputMessage,
-            mentionables,
-          }))
-        }}
-        autoFocus
-        addedBlockKey={addedBlockKey}
-        isLoading={submitChatMutation.isPending || externalStreamActive}
-        onAbort={abortActiveStreams}
-      />
-    </div>
+    </ChatContainerContext.Provider>
   )
 })
 

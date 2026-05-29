@@ -2,6 +2,7 @@ import * as Popover from '@radix-ui/react-popover'
 import { Check, Edit, Trash, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { useOwnerDocument } from '../../contexts/chat-container-context'
 import { ChatConversationMetadata } from '../../database/chat/types'
 
 function ChatListItem({
@@ -155,6 +156,8 @@ export function ChatListDropdown({
   const [focusedIndex, setFocusedIndex] = useState<number>(0)
   const [editingId, setEditingId] = useState<string | null>(null)
 
+  const ownerDocument = useOwnerDocument()
+
   useEffect(() => {
     if (open) {
       const currentIndex = chatList.findIndex(
@@ -187,9 +190,12 @@ export function ChatListDropdown({
         </button>
       </Popover.Trigger>
 
-      <Popover.Portal>
+      <Popover.Portal container={ownerDocument.body}>
         <Popover.Content
           className="zncz-popover zncz-chat-list-dropdown-content"
+          sideOffset={3}
+          collisionPadding={4}
+          avoidCollisions={true}
           onKeyDown={handleKeyDown}
         >
           <ul style={{ maxHeight: '425px' }}>

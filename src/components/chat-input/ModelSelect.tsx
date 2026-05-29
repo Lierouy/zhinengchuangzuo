@@ -2,11 +2,13 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useState } from 'react'
 
+import { useOwnerDocument } from '../../contexts/chat-container-context'
 import { useSettings } from '../../contexts/settings-context'
 
 export function ModelSelect() {
   const { settings, setSettings } = useSettings()
   const [isOpen, setIsOpen] = useState(false)
+  const ownerDocument = useOwnerDocument()
   const enabledChatModels = settings.chatModels.filter(
     ({ enable }) => enable ?? true,
   )
@@ -28,8 +30,13 @@ export function ModelSelect() {
         </div>
       </DropdownMenu.Trigger>
 
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content className="zncz-popover">
+      <DropdownMenu.Portal container={ownerDocument.body}>
+        <DropdownMenu.Content
+          className="zncz-popover"
+          sideOffset={3}
+          collisionPadding={4}
+          avoidCollisions={true}
+        >
           <ul>
             {hasModels ? (
               enabledChatModels.map((chatModelOption) => (

@@ -442,15 +442,6 @@
   animation: fadeIn 0.1s ease-in-out;
 }
 
-.zncz-tooltip-content {
-  background-color: var(--background-primary);
-  border: 1px solid var(--background-modifier-border-hover);
-  border-radius: var(--radius-s);
-  padding: var(--size-2-1) var(--size-2-3);
-  font-size: var(--font-smallest);
-  animation: fadeIn 0.1s ease-in-out;
-}
-
 @keyframes fadeIn {
   from {
     opacity: 0;

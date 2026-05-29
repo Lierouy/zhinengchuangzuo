@@ -72,14 +72,16 @@ export type MenuRenderFn<TOption extends MenuOption> = (
 ) => ReactPortal | JSX.Element | null
 
 const scrollIntoViewIfNeeded = (target: HTMLElement) => {
-  const typeaheadContainerNode = document.getElementById('typeahead-menu')
+  const ownerDocument = target.ownerDocument
+  const ownerWindow = ownerDocument.defaultView ?? window
+  const typeaheadContainerNode = ownerDocument.getElementById('typeahead-menu')
   if (!typeaheadContainerNode) {
     return
   }
 
   const typeaheadRect = typeaheadContainerNode.getBoundingClientRect()
 
-  if (typeaheadRect.top + typeaheadRect.height > window.innerHeight) {
+  if (typeaheadRect.top + typeaheadRect.height > ownerWindow.innerHeight) {
     typeaheadContainerNode.scrollIntoView({
       block: 'center',
     })
@@ -159,7 +161,7 @@ export function getScrollParent(
   const excludeStaticParent = style.position === 'absolute'
   const overflowRegex = includeHidden ? /(auto|scroll|hidden)/ : /(auto|scroll)/
   if (style.position === 'fixed') {
-    return document.body
+    return element.ownerDocument.body
   }
   for (
     let parent: HTMLElement | null = element;
@@ -175,7 +177,7 @@ export function getScrollParent(
       return parent
     }
   }
-  return document.body
+  return element.ownerDocument.body
 }
 
 function isTriggerVisibleInNearestScrollContainer(
@@ -201,7 +203,10 @@ export function useDynamicPositioning(
       const rootScrollParent =
         rootElement != null
           ? getScrollParent(rootElement, false)
-          : document.body
+          : targetElement.ownerDocument.body
+      // Derive the correct window from the target element's document
+      const ownerDoc = targetElement.ownerDocument
+      const ownerWin = ownerDoc.defaultView ?? window
       let ticking = false
       let previousIsInView = isTriggerVisibleInNearestScrollContainer(
         targetElement,
@@ -209,7 +214,7 @@ export function useDynamicPositioning(
       )
       const handleScroll = function () {
         if (!ticking) {
-          window.requestAnimationFrame(function () {
+          ownerWin.requestAnimationFrame(function () {
             onReposition()
             ticking = false
           })
@@ -227,16 +232,16 @@ export function useDynamicPositioning(
         }
       }
       const resizeObserver = new ResizeObserver(onReposition)
-      window.addEventListener('resize', onReposition)
-      document.addEventListener('scroll', handleScroll, {
+      ownerWin.addEventListener('resize', onReposition)
+      ownerDoc.addEventListener('scroll', handleScroll, {
         capture: true,
         passive: true,
       })
       resizeObserver.observe(targetElement)
       return () => {
         resizeObserver.unobserve(targetElement)
-        window.removeEventListener('resize', onReposition)
-        document.removeEventListener('scroll', handleScroll, true)
+        ownerWin.removeEventListener('resize', onReposition)
+        ownerDoc.removeEventListener('scroll', handleScroll, true)
       }
     }
   }, [targetElement, editor, onVisibilityChange, onReposition, resolution])
@@ -260,7 +265,7 @@ export function LexicalMenu<TOption extends MenuOption>({
 }: {
   close: () => void
   editor: LexicalEditor
-  anchorElementRef: MutableRefObject<HTMLElement>
+  anchorElementRef: MutableRefObject<HTMLElement | null>
   resolution: MenuResolution
   options: TOption[]
   shouldSplitNodeWithQuery?: boolean
@@ -474,17 +479,32 @@ export function useMenuAnchorRef(
   resolution: MenuResolution | null,
   setResolution: (r: MenuResolution | null) => void,
   className?: string,
-  parent: HTMLElement = document.body,
+  parent?: HTMLElement,
   shouldIncludePageYOffset__EXPERIMENTAL = true,
 ): MutableRefObject<HTMLElement> {
   const [editor] = useLexicalComposerContext()
-  const anchorElementRef = useRef<HTMLElement>(document.createElement('div'))
-  const positionMenu = useCallback(() => {
-    anchorElementRef.current.style.top = anchorElementRef.current.style.bottom
+
+  // Derive the correct document from the editor root element so that
+  // the menu is positioned in the correct window (critical for pop-out windows).
+  const getOwnerContext = useCallback(() => {
     const rootElement = editor.getRootElement()
+    const ownerDoc = rootElement?.ownerDocument ?? document
+    const ownerWin = ownerDoc.defaultView ?? window
+    const effectiveParent =
+      parent ?? rootElement?.ownerDocument?.body ?? document.body
+    return { ownerDoc, ownerWin, effectiveParent }
+  }, [editor, parent])
+
+  // Always hold an element so positionMenu never bails out early.
+  // The owner document of this div doesn't matter — it will be appended
+  // to the correct body via getOwnerContext().effectiveParent.
+  const anchorElementRef = useRef<HTMLElement>(document.createElement('div'))
+
+  const positionMenu = useCallback(() => {
+    const { ownerWin, effectiveParent } = getOwnerContext()
     const containerDiv = anchorElementRef.current
 
-    const menuEle = containerDiv.firstChild as HTMLElement
+    const rootElement = editor.getRootElement()
     if (rootElement !== null && resolution !== null) {
       // Ensure container is in the DOM before measuring, otherwise
       // offsetHeight and getBoundingClientRect return 0 for orphan elements,
@@ -498,44 +518,59 @@ export function useMenuAnchorRef(
         containerDiv.setAttribute('role', 'listbox')
         containerDiv.style.display = 'block'
         containerDiv.style.position = 'absolute'
-        parent.append(containerDiv)
+        effectiveParent.append(containerDiv)
       }
 
-      const { left, top, width, height } = resolution.getRect()
-      const anchorHeight = anchorElementRef.current.offsetHeight // use to position under anchor
-      containerDiv.style.top = `${
+      const { left, top, height } = resolution.getRect()
+      const gap = 3
+
+      // Position anchor below cursor initially
+      const belowTop =
         top +
-        anchorHeight +
-        3 +
-        (shouldIncludePageYOffset__EXPERIMENTAL ? window.pageYOffset : 0)
-      }px`
-      containerDiv.style.left = `${left + window.pageXOffset}px`
-      containerDiv.style.height = `${height}px`
-      containerDiv.style.width = `${width}px`
-      if (menuEle !== null) {
-        menuEle.style.top = `${top}`
-        const menuRect = menuEle.getBoundingClientRect()
+        height +
+        gap +
+        (shouldIncludePageYOffset__EXPERIMENTAL ? ownerWin.pageYOffset : 0)
+      containerDiv.style.top = `${belowTop}px`
+      containerDiv.style.left = `${left + ownerWin.pageXOffset}px`
+
+      // Measure menu and flip if it overflows the window bottom.
+      // Extracted so it can be deferred when Portal hasn't rendered yet.
+      const applyFlip = () => {
+        const menuEl = containerDiv.firstChild as HTMLElement | null
+        if (!menuEl) return
+
+        const menuRect = menuEl.getBoundingClientRect()
         const menuHeight = menuRect.height
         const menuWidth = menuRect.width
 
         const rootElementRect = rootElement.getBoundingClientRect()
 
+        // Horizontal: keep within root element
         if (left + menuWidth > rootElementRect.right) {
           containerDiv.style.left = `${
-            rootElementRect.right - menuWidth + window.pageXOffset
+            rootElementRect.right - menuWidth + ownerWin.pageXOffset
           }px`
         }
-        if (top + menuHeight > window.innerHeight) {
+
+        // Vertical: flip above cursor if overflow
+        if (top + height + gap + menuHeight > ownerWin.innerHeight) {
           containerDiv.style.top = `${
             top -
             menuHeight -
-            height +
-            (shouldIncludePageYOffset__EXPERIMENTAL ? window.pageYOffset : 0)
+            gap +
+            (shouldIncludePageYOffset__EXPERIMENTAL ? ownerWin.pageYOffset : 0)
           }px`
         }
       }
 
-      anchorElementRef.current = containerDiv
+      const menuEle = containerDiv.firstChild as HTMLElement | null
+      if (menuEle) {
+        applyFlip()
+      } else {
+        // Portal not yet rendered — defer one frame
+        ownerWin.requestAnimationFrame(applyFlip)
+      }
+
       rootElement.setAttribute('aria-controls', 'typeahead-menu')
     }
   }, [
@@ -543,7 +578,7 @@ export function useMenuAnchorRef(
     resolution,
     shouldIncludePageYOffset__EXPERIMENTAL,
     className,
-    parent,
+    getOwnerContext,
   ])
 
   useEffect(() => {
@@ -557,7 +592,12 @@ export function useMenuAnchorRef(
       // template search completes).  Watch for child additions so the menu
       // is repositioned once the actual list items appear.
       const mutationObserver = new MutationObserver(() => positionMenu())
-      mutationObserver.observe(containerDiv, { childList: true, subtree: true })
+      if (containerDiv) {
+        mutationObserver.observe(containerDiv, {
+          childList: true,
+          subtree: true,
+        })
+      }
 
       return () => {
         mutationObserver.disconnect()

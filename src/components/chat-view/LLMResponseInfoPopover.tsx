@@ -29,7 +29,7 @@ export default function LLMResponseInfoPopover({
         <Popover.Content
           className="zncz-popover-content zncz-llm-info-content"
           side="bottom"
-          sideOffset={4}
+          sideOffset={3}
           collisionPadding={12}
           avoidCollisions={true}
         >

@@ -14,7 +14,7 @@ import {
   SerializedEditorState,
   SerializedRootNode,
 } from 'lexical'
-import { RefObject, useCallback, useEffect } from 'react'
+import { RefObject, useCallback, useEffect, useRef, useState } from 'react'
 
 import { useApp } from '../../contexts/app-context'
 import { MentionableImage } from '../../types/mentionable'
@@ -107,6 +107,47 @@ export default function LexicalContentEditable({
 }: LexicalContentEditableProps) {
   const app = useApp()
 
+  // Force remount of LexicalComposer when the ownerDocument changes
+  // (e.g. when the view is popped out to a new window or moved back).
+  // Lexical registers native event listeners (keydown, beforeinput, input)
+  // on rootElement.ownerDocument at mount time.  When the DOM is moved
+  // to a different window, those listeners stay on the old document and
+  // keyboard input silently breaks.
+  const [editorKey, setEditorKey] = useState(0)
+  const lastOwnerDocRef = useRef<Document | null>(null)
+  const shouldRefocusRef = useRef(false)
+
+  const handleContentEditableFocus = useCallback(() => {
+    const el = contentEditableRef.current
+    if (el) {
+      const currentDoc = el.ownerDocument
+      if (
+        lastOwnerDocRef.current !== null &&
+        currentDoc !== lastOwnerDocRef.current
+      ) {
+        // Owner document changed — force Lexical remount
+        lastOwnerDocRef.current = currentDoc
+        shouldRefocusRef.current = true
+        setEditorKey((k) => k + 1)
+        onFocus?.()
+        return
+      }
+      lastOwnerDocRef.current = currentDoc
+    }
+    onFocus?.()
+  }, [contentEditableRef, onFocus])
+
+  // Re-focus after LexicalComposer remounts due to document change
+  useEffect(() => {
+    if (shouldRefocusRef.current && contentEditableRef.current) {
+      shouldRefocusRef.current = false
+      const win = contentEditableRef.current.ownerDocument.defaultView
+      win?.requestAnimationFrame(() => {
+        contentEditableRef.current?.focus()
+      })
+    }
+  }, [editorKey, contentEditableRef])
+
   const initialConfig: InitialConfigType = {
     namespace: 'LexicalContentEditable',
     theme: {
@@ -130,15 +171,16 @@ export default function LexicalContentEditable({
    * due to known issues with editor.focus() when initialConfig.editorState is set
    */
   useEffect(() => {
-    if (autoFocus) {
-      requestAnimationFrame(() => {
+    if (autoFocus && contentEditableRef.current) {
+      const win = contentEditableRef.current.ownerDocument.defaultView
+      win?.requestAnimationFrame(() => {
         contentEditableRef.current?.focus()
       })
     }
   }, [autoFocus, contentEditableRef])
 
   return (
-    <LexicalComposer initialConfig={initialConfig}>
+    <LexicalComposer key={editorKey} initialConfig={initialConfig}>
       {/* 
         There was two approach to make mentionable node copy and pasteable.
         1. use RichTextPlugin and reset text format when paste
@@ -153,7 +195,7 @@ export default function LexicalContentEditable({
             style={{
               background: 'transparent',
             }}
-            onFocus={onFocus}
+            onFocus={handleContentEditableFocus}
             ref={contentEditableRef}
           />
         }

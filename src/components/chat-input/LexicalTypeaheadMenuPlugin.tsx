@@ -109,7 +109,7 @@ export function getScrollParent(
   const excludeStaticParent = style.position === 'absolute'
   const overflowRegex = includeHidden ? /(auto|scroll|hidden)/ : /(auto|scroll)/
   if (style.position === 'fixed') {
-    return document.body
+    return element.ownerDocument.body
   }
   for (
     let parent: HTMLElement | null = element;
@@ -125,7 +125,7 @@ export function getScrollParent(
       return parent
     }
   }
-  return document.body
+  return element.ownerDocument.body
 }
 
 export const SCROLL_TYPEAHEAD_OPTION_INTO_VIEW_COMMAND: LexicalCommand<{
@@ -193,6 +193,7 @@ export function LexicalTypeaheadMenuPlugin<TOption extends MenuOption>({
 }: TypeaheadMenuPluginProps<TOption>): JSX.Element | null {
   const [editor] = useLexicalComposerContext()
   const [resolution, setResolution] = useState<MenuResolution | null>(null)
+
   const anchorElementRef = useMenuAnchorRef(
     resolution,
     setResolution,
@@ -220,7 +221,10 @@ export function LexicalTypeaheadMenuPlugin<TOption extends MenuOption>({
   useEffect(() => {
     const updateListener = () => {
       editor.getEditorState().read(() => {
-        const editorWindow = editor._window ?? window
+        // Derive the correct window from the editor root element
+        const rootElement = editor.getRootElement()
+        const editorWindow =
+          rootElement?.ownerDocument?.defaultView ?? editor._window ?? window
         const range = editorWindow.document.createRange()
         const selection = $getSelection()
         const text = getQueryTextForSearch(editor)

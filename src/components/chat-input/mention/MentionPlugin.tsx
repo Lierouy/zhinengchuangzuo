@@ -236,12 +236,7 @@ export default function NewMentionsPlugin({
       ) =>
         anchorElementRef.current && results.length
           ? createPortal(
-              <div
-                className="zncz-popover zncz-mention-popover"
-                style={{
-                  position: 'fixed',
-                }}
-              >
+              <div className="zncz-popover zncz-mention-popover">
                 <ul>
                   {options.map((option, i: number) => (
                     <MentionsTypeaheadMenuItem

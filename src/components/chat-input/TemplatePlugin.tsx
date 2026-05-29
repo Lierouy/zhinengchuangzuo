@@ -142,12 +142,7 @@ export default function TemplatePlugin() {
       ) =>
         anchorElementRef.current && searchResults.length
           ? createPortal(
-              <div
-                className="zncz-popover"
-                style={{
-                  position: 'fixed',
-                }}
-              >
+              <div className="zncz-popover">
                 <ul>
                   {options.map((option, i: number) => (
                     <TemplateMenuItem

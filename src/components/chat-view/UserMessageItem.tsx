@@ -1,12 +1,7 @@
-import * as Tooltip from '@radix-ui/react-tooltip'
 import { Check, CopyIcon, Trash } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
-import {
-  ChatAssistantMessage,
-  ChatMessage,
-  ChatUserMessage,
-} from '../../types/chat'
+import { ChatAssistantMessage, ChatUserMessage } from '../../types/chat'
 import { MentionableBlock, MentionableImage } from '../../types/mentionable'
 import { ContentPart } from '../../types/request'
 
@@ -19,14 +14,12 @@ import { SelectedBlockFold } from './SelectedBlockFold'
 export type UserMessageItemProps = {
   message: ChatUserMessage | ChatAssistantMessage
   onDelete?: (id: string) => void
-  _contextMessages?: ChatMessage[]
   isLoading?: boolean
 }
 
 export default function UserMessageItem({
   message,
   onDelete,
-  _contextMessages,
   isLoading,
 }: UserMessageItemProps) {
   const [copied, setCopied] = useState(false)
@@ -147,65 +140,33 @@ export default function UserMessageItem({
       )}
       <div className="zncz-assistant-message-actions">
         {message.role === 'assistant' && (
-          <Tooltip.Provider delayDuration={0}>
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <div
-                  style={
-                    isLoading
-                      ? { pointerEvents: 'none', opacity: 0.5 }
-                      : undefined
-                  }
-                >
-                  <LLMResponseInfoPopover usage={usage} model={modelName} />
-                </div>
-              </Tooltip.Trigger>
-              <Tooltip.Portal>
-                <Tooltip.Content className="zncz-tooltip-content">
-                  详情
-                </Tooltip.Content>
-              </Tooltip.Portal>
-            </Tooltip.Root>
-          </Tooltip.Provider>
+          <div
+            style={
+              isLoading ? { pointerEvents: 'none', opacity: 0.7 } : undefined
+            }
+            aria-label="详情"
+          >
+            <LLMResponseInfoPopover usage={usage} model={modelName} />
+          </div>
         )}
         {onDelete && (
-          <Tooltip.Provider delayDuration={0}>
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <button
-                  onClick={() => onDelete(message.id)}
-                  className="clickable-icon"
-                  disabled={isLoading}
-                >
-                  <Trash size={12} />
-                </button>
-              </Tooltip.Trigger>
-              <Tooltip.Portal>
-                <Tooltip.Content className="zncz-tooltip-content">
-                  删除
-                </Tooltip.Content>
-              </Tooltip.Portal>
-            </Tooltip.Root>
-          </Tooltip.Provider>
+          <button
+            onClick={() => onDelete(message.id)}
+            className="clickable-icon"
+            disabled={isLoading}
+            aria-label="删除"
+          >
+            <Trash size={12} />
+          </button>
         )}
-        <Tooltip.Provider delayDuration={0}>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <button
-                onClick={copied ? undefined : handleCopy}
-                className="clickable-icon"
-                disabled={isLoading}
-              >
-                {copied ? <Check size={12} /> : <CopyIcon size={12} />}
-              </button>
-            </Tooltip.Trigger>
-            <Tooltip.Portal>
-              <Tooltip.Content className="zncz-tooltip-content">
-                复制
-              </Tooltip.Content>
-            </Tooltip.Portal>
-          </Tooltip.Root>
-        </Tooltip.Provider>
+        <button
+          onClick={copied ? undefined : handleCopy}
+          className="clickable-icon"
+          disabled={isLoading}
+          aria-label="复制"
+        >
+          {copied ? <Check size={12} /> : <CopyIcon size={12} />}
+        </button>
       </div>
     </div>
   )
