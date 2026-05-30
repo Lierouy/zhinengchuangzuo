@@ -934,17 +934,15 @@ button.zncz-chat-input-model-select {
       font-size: 1.04em;
     }
 
-    li {
-      &::marker {
-        color: var(--text-muted);
-      }
+    li::marker {
+      color: var(--text-muted);
     }
 
     blockquote {
       font-size: 0.9em;
       margin: 0;
       padding-inline-start: calc(var(--render-scale) * 0.75rem);
-      border-left: solid 1px var(--blockquote-border-color);
+      border-left: 1px solid var(--blockquote-border-color);
     }
 
     code {
@@ -958,7 +956,7 @@ button.zncz-chat-input-model-select {
       padding: 1px calc(var(--render-scale) * 0.4rem);
       background-color: transparent;
       border-radius: 0;
-      border-left: solid 1px var(--text-faint);
+      border-left: 1px solid var(--text-faint);
       overflow-x: hidden;
     }
 
