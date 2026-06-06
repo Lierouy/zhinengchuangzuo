@@ -1,6 +1,7 @@
-import { Check, CopyIcon, Trash } from 'lucide-react'
+import { Check, CopyIcon, FileInput, Trash } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
+import { useApp } from '../../contexts/app-context'
 import { ChatAssistantMessage, ChatUserMessage } from '../../types/chat'
 import { MentionableBlock, MentionableImage } from '../../types/mentionable'
 import { ContentPart } from '../../types/request'
@@ -22,7 +23,9 @@ export default function UserMessageItem({
   onDelete,
   isLoading,
 }: UserMessageItemProps) {
+  const app = useApp()
   const [copied, setCopied] = useState(false)
+  const [written, setWritten] = useState(false)
 
   const contentParts = useMemo(() => {
     if (message.role === 'user') {
@@ -74,6 +77,14 @@ export default function UserMessageItem({
     await navigator.clipboard.writeText(contentString)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
+  }
+
+  const handleWrite = async () => {
+    const activeFile = app.workspace.getActiveFile()
+    if (!activeFile) return
+    await app.vault.append(activeFile, '\n' + contentString + '\n')
+    setWritten(true)
+    setTimeout(() => setWritten(false), 1500)
   }
 
   // For assistant messages, extract usage info for the popover
@@ -139,6 +150,16 @@ export default function UserMessageItem({
         </div>
       )}
       <div className="zncz-assistant-message-actions">
+        {message.role === 'assistant' && (
+          <button
+            onClick={written ? undefined : handleWrite}
+            className="clickable-icon"
+            disabled={isLoading}
+            aria-label="添加"
+          >
+            {written ? <Check size={12} /> : <FileInput size={12} />}
+          </button>
+        )}
         {message.role === 'assistant' && (
           <div
             style={
