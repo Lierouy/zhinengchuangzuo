@@ -44,8 +44,7 @@ export type SerializedChatAssistantMessage = {
   }
 }
 export type SerializedChatMessage =
-  | SerializedChatUserMessage
-  | SerializedChatAssistantMessage
+  SerializedChatUserMessage | SerializedChatAssistantMessage
 
 export type ChatConversation = {
   schemaVersion: number

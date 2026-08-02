@@ -54,7 +54,10 @@ import { ContextManagementModal } from '../modals/ContextManagementModal'
 import { HandleSectionModal } from '../modals/HandleSectionModal'
 import { TemplateSectionModal } from '../modals/TemplateSectionModal'
 
-import ChatUserInput, { ChatUserInputRef } from './../chat-input/ChatUserInput'
+import ChatUserInput, {
+  ChatUserInputRef,
+  MAX_BLOCK_COUNT,
+} from './../chat-input/ChatUserInput'
 import { editorStateToPlainText } from './../chat-input/editor-state-to-plain-text'
 import { ChatListDropdown } from './ChatListDropdown'
 import { useAutoScroll } from './useAutoScroll'
@@ -698,44 +701,58 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
         ...selectedBlock,
       }
 
-      setAddedBlockKey(getMentionableKey(serializeMentionable(mentionable)))
+      const mentionableKey = getMentionableKey(
+        serializeMentionable(mentionable),
+      )
 
-      if (focusedMessageId === inputMessage.id) {
-        setInputMessage((prevInputMessage) => {
-          const mentionableKey = getMentionableKey(
-            serializeMentionable(mentionable),
-          )
-          // Check if mentionable already exists
-          if (
-            prevInputMessage.mentionables.some(
+      // 当前输入框或聚焦消息中是否已存在该 block
+      const existsInInput =
+        focusedMessageId === inputMessage.id &&
+        inputMessage.mentionables.some(
+          (m) => getMentionableKey(serializeMentionable(m)) === mentionableKey,
+        )
+      const existsInHistory =
+        focusedMessageId !== inputMessage.id &&
+        chatMessages.some(
+          (message) =>
+            message.id === focusedMessageId &&
+            message.role === 'user' &&
+            message.mentionables.some(
               (m) =>
                 getMentionableKey(serializeMentionable(m)) === mentionableKey,
-            )
-          ) {
-            return prevInputMessage
-          }
-          return {
-            ...prevInputMessage,
-            mentionables: [...prevInputMessage.mentionables, mentionable],
-          }
-        })
+            ),
+        )
+
+      if (existsInInput || existsInHistory) {
+        return
+      }
+
+      // 限制 block 数量，超出上限时提示
+      const blockCount =
+        focusedMessageId === inputMessage.id
+          ? inputMessage.mentionables.filter((m) => m.type === 'block').length
+          : ((
+              chatMessages.find(
+                (message) =>
+                  message.id === focusedMessageId && message.role === 'user',
+              ) as ChatUserMessage | undefined
+            )?.mentionables.filter((m) => m.type === 'block').length ?? 0)
+      if (blockCount >= MAX_BLOCK_COUNT) {
+        new Notice(`Up to ${MAX_BLOCK_COUNT} excerpts are allowed to be added`)
+        return
+      }
+
+      setAddedBlockKey(mentionableKey)
+
+      if (focusedMessageId === inputMessage.id) {
+        setInputMessage((prevInputMessage) => ({
+          ...prevInputMessage,
+          mentionables: [...prevInputMessage.mentionables, mentionable],
+        }))
       } else {
         setChatMessages((prevChatHistory) =>
           prevChatHistory.map((message) => {
             if (message.id === focusedMessageId && message.role === 'user') {
-              const mentionableKey = getMentionableKey(
-                serializeMentionable(mentionable),
-              )
-              // Check if mentionable already exists
-              if (
-                message.mentionables.some(
-                  (m) =>
-                    getMentionableKey(serializeMentionable(m)) ===
-                    mentionableKey,
-                )
-              ) {
-                return message
-              }
               return {
                 ...message,
                 mentionables: [...message.mentionables, mentionable],

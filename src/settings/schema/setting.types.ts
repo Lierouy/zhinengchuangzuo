@@ -9,7 +9,6 @@ export const SETTINGS_SCHEMA_VERSION = 17
 /**
  * Settings
  */
-
 export const zhinengchuangzuoSettingsSchema = z.object({
   // Version
   version: z.literal(SETTINGS_SCHEMA_VERSION).catch(SETTINGS_SCHEMA_VERSION),

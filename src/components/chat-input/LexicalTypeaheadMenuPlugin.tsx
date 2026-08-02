@@ -2,7 +2,6 @@
  * Copyright (c) Meta Platforms, Inc. and affiliates.
  * Modified from the original code
  */
-
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import {
   $getSelection,

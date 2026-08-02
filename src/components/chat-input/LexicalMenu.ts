@@ -2,7 +2,6 @@
  * Modified from the original code
  * - Added custom positioning logic for menu placement
  */
-
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { mergeRegister } from '@lexical/utils'
 import {

@@ -112,8 +112,8 @@ export default function TemplatePlugin() {
           const parentParagraph = nodeToRemove.getParent()
           if (parentParagraph) {
             let prevNode:
-              | typeof parentParagraph
-              | ReturnType<typeof $createParagraphNode> = parentParagraph
+              typeof parentParagraph | ReturnType<typeof $createParagraphNode> =
+              parentParagraph
             for (let i = 1; i < lines.length; i++) {
               const paragraph = $createParagraphNode()
               paragraph.append($createTextNode(lines[i]))

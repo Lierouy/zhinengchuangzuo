@@ -279,14 +279,12 @@ export class PromptGenerator {
 
       return {
         promptContent: [
-          ...imageDataUrls.map(
-            (data): ContentPart => ({
-              type: 'image_url',
-              image_url: {
-                url: data,
-              },
-            }),
-          ),
+          ...imageDataUrls.map((data): ContentPart => ({
+            type: 'image_url',
+            image_url: {
+              url: data,
+            },
+          })),
           {
             type: 'text',
             text: textParts.join('\n'),

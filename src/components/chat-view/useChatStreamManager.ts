@@ -242,8 +242,7 @@ export function useChatStreamManager({
 
   const [clientState, setClientState] = useState<{
     providerClient:
-      | ReturnType<typeof getChatModelClient>['providerClient']
-      | null
+      ReturnType<typeof getChatModelClient>['providerClient'] | null
     model: ReturnType<typeof getChatModelClient>['model'] | null
   }>({ providerClient: null, model: null })
 

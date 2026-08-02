@@ -2,7 +2,6 @@
  * Copyright (c) Meta Platforms, Inc. and affiliates.
  * Modified from the original code
  */
-
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { $createTextNode, COMMAND_PRIORITY_NORMAL, TextNode } from 'lexical'
 import { useCallback, useMemo, useState } from 'react'
@@ -50,22 +49,22 @@ const VALID_JOINS =
   ']|' + // E.g. "-' in "Salier-Hellendag"
   ')'
 
-const LENGTH_LIMIT = 75
+const LENGTH_LIMIT = 65
 
 const AtSignMentionsRegex = new RegExp(
   `(^|\\s|\\()([${TRIGGERS}]((?:${VALID_CHARS}${VALID_JOINS}){0,${LENGTH_LIMIT}}))$`,
 )
 
 // 50 is the longest alias length limit.
-const ALIAS_LENGTH_LIMIT = 50
+const ALIAS_LENGTH_LIMIT = 45
 
 // Regex used to match alias.
 const AtSignMentionsRegexAliasRegex = new RegExp(
   `(^|\\s|\\()([${TRIGGERS}]((?:${VALID_CHARS}){0,${ALIAS_LENGTH_LIMIT}}))$`,
 )
 
-// At most, 20 suggestions are shown in the popup.
-const SUGGESTION_LIST_LENGTH_LIMIT = 20
+// At most, 15 suggestions are shown in the popup.
+const SUGGESTION_LIST_LENGTH_LIMIT = 15
 
 function checkForAtSignMentions(
   text: string,
@@ -162,8 +161,10 @@ function MentionsTypeaheadMenuItem({
 
 export default function NewMentionsPlugin({
   searchResultByQuery,
+  mentionLimitReached,
 }: {
   searchResultByQuery: (query: string) => SearchableMentionable[]
+  mentionLimitReached: boolean
 }): JSX.Element | null {
   const [editor] = useLexicalComposerContext()
 
@@ -213,6 +214,10 @@ export default function NewMentionsPlugin({
 
   const checkForMentionMatch = useCallback(
     (text: string) => {
+      if (mentionLimitReached) {
+        // 文件/文件夹引用数量已达上限，不再弹出 @ 菜单
+        return null
+      }
       const slashMatch = checkForSlashTriggerMatch(text, editor)
 
       if (slashMatch !== null) {
@@ -220,7 +225,7 @@ export default function NewMentionsPlugin({
       }
       return getPossibleQueryMatch(text)
     },
-    [checkForSlashTriggerMatch, editor],
+    [checkForSlashTriggerMatch, editor, mentionLimitReached],
   )
 
   return (

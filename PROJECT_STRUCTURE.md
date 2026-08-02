@@ -252,6 +252,7 @@ Obsidian 风格的通用 UI 封装，供 `settings/` 和 `modals/` 复用。
 
 | 文件 | 职责 |
 |---|---|
+| `lexical.ts` | Lexical 工具函数。`$findNodesOfType` 递归遍历编辑器根节点树，返回指定类型的所有节点。 |
 | `mentionable.ts` | Mentionable 序列化/反序列化/去重 key/显示名，统一处理所有类型（file / folder / current-file / block / image）的转换逻辑。 |
 | `message-groups.ts` | 消息分组函数。将连续的 `assistant` 消息合并为 `AssistantToolMessageGroup`，user 消息保持不变，用于分页计算和渲染。 |
 | `promptGenerator.ts` | 提示词生成器 `PromptGenerator`。编译用户消息提示（读取文件/文件夹/块内容、处理图片 base64）、生成系统消息（基于条件激活规则匹配 `PromptItem`）、构建最终请求消息数组（system + currentFile + chatHistory）。 |

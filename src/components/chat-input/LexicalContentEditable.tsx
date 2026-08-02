@@ -92,6 +92,7 @@ export type LexicalContentEditableProps = {
   onCreateImageMentionables?: (mentionables: MentionableImage[]) => void
   initialEditorState?: InitialEditorStateType
   autoFocus?: boolean
+  mentionLimitReached?: boolean
 }
 
 export default function LexicalContentEditable({
@@ -104,6 +105,7 @@ export default function LexicalContentEditable({
   onCreateImageMentionables,
   initialEditorState,
   autoFocus = false,
+  mentionLimitReached = false,
 }: LexicalContentEditableProps) {
   const app = useApp()
 
@@ -202,7 +204,10 @@ export default function LexicalContentEditable({
         ErrorBoundary={LexicalErrorBoundary}
       />
       <HistoryPlugin />
-      <MentionPlugin searchResultByQuery={searchResultByQuery} />
+      <MentionPlugin
+        searchResultByQuery={searchResultByQuery}
+        mentionLimitReached={mentionLimitReached}
+      />
       <OnChangePlugin
         onChange={(editorState) => {
           const state = editorState.toJSON()

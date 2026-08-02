@@ -42,12 +42,10 @@ export default function UserMessageItem({
       // 从 mentionables 提取图片，始终可用，不会因为 promptContent 清空而丢失
       const images = message.mentionables
         .filter((m): m is MentionableImage => m.type === 'image')
-        .map(
-          (img): ContentPart => ({
-            type: 'image_url',
-            image_url: { url: img.data },
-          }),
-        )
+        .map((img): ContentPart => ({
+          type: 'image_url',
+          image_url: { url: img.data },
+        }))
 
       // 图片在前，文本在后
       return [

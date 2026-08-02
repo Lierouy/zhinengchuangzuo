@@ -1,6 +1,6 @@
-/* $nodesOfType 暂时没有替代函数 */
-import { $nodesOfType, LexicalEditor, SerializedEditorState } from 'lexical'
+import { LexicalEditor, SerializedEditorState, TextNode } from 'lexical'
 import { Ban } from 'lucide-react'
+import { Notice } from 'obsidian'
 import {
   forwardRef,
   useCallback,
@@ -16,6 +16,7 @@ import {
   MentionableImage,
   SerializedMentionable,
 } from '../../types/mentionable'
+import { $findNodesOfType } from '../../utils/chat/lexical'
 import {
   deserializeMentionable,
   getMentionableKey,
@@ -31,6 +32,11 @@ import MentionableBadge from './MentionableBadge'
 import { ModelSelect } from './ModelSelect'
 import { NodeMutations } from './OnMutationPlugin'
 import { SubmitButton } from './SubmitButton'
+
+// 输入框 mentionable 数量上限
+export const MAX_MENTION_COUNT = 10 // @ 提及文件/文件夹 合计上限
+export const MAX_BLOCK_COUNT = 5 // 选中文本块上限
+export const MAX_IMAGE_COUNT = 5 // 图片上限
 
 export type ChatUserInputRef = {
   focus: () => void
@@ -66,6 +72,10 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
     ref,
   ) => {
     const app = useApp()
+
+    const showImageLimitNotice = useCallback(() => {
+      new Notice(`Up to ${MAX_IMAGE_COUNT} images can be added`)
+    }, [])
 
     const editorRef = useRef<LexicalEditor | null>(null)
     const contentEditableRef = useRef<HTMLDivElement>(null)
@@ -104,7 +114,7 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
 
           if (mutation.mutation === 'destroyed') {
             const nodeWithSameMentionable = editorRef.current?.read(() =>
-              $nodesOfType(MentionNode).find(
+              $findNodesOfType(MentionNode).find(
                 (node) =>
                   getMentionableKey(node.getMentionable()) === mentionableKey,
               ),
@@ -166,6 +176,14 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
             ),
         )
         if (newMentionableImages.length === 0) return
+
+        // 图片数量限制（覆盖上传按钮、拖拽、粘贴所有入口）
+        const imageCount = mentionables.filter((m) => m.type === 'image').length
+        if (imageCount + newMentionableImages.length > MAX_IMAGE_COUNT) {
+          showImageLimitNotice()
+          return
+        }
+
         setMentionables([...mentionables, ...newMentionableImages])
         setDisplayedMentionableKey(
           getMentionableKey(
@@ -175,7 +193,7 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
           ),
         )
       },
-      [mentionables, setMentionables],
+      [mentionables, setMentionables, showImageLimitNotice],
     )
 
     const handleMentionableDelete = (mentionable: Mentionable) => {
@@ -189,9 +207,25 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
       )
 
       editorRef.current?.update(() => {
-        $nodesOfType(MentionNode).forEach((node) => {
-          if (getMentionableKey(node.getMentionable()) === mentionableKey) {
-            node.remove()
+        $findNodesOfType(MentionNode).forEach((node) => {
+          if (getMentionableKey(node.getMentionable()) !== mentionableKey) {
+            return
+          }
+          // 必须先获取兄弟引用再 remove：remove 会把节点从父节点分离，
+          // 之后 getNextSibling() 将永远返回 null。
+          const nextSibling = node.getNextSibling()
+          node.remove()
+          // 同时移除插入 mention 时自动追加的尾随空格，
+          // 避免删除 badge 后残留孤立空格。
+          if (
+            nextSibling instanceof TextNode &&
+            nextSibling.getTextContent().startsWith(' ')
+          ) {
+            if (nextSibling.getTextContent().length === 1) {
+              nextSibling.remove()
+            } else {
+              nextSibling.spliceText(0, 1, '', true)
+            }
           }
         })
       })
@@ -203,6 +237,14 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
       )
       handleCreateImageMentionables(mentionableImages)
     }
+
+    const isImageAtLimit =
+      mentionables.filter((m) => m.type === 'image').length >= MAX_IMAGE_COUNT
+
+    // @ 提及文件/文件夹合计达到上限后，不再弹出 @ 菜单
+    const isMentionAtLimit =
+      mentionables.filter((m) => m.type === 'file' || m.type === 'folder')
+        .length >= MAX_MENTION_COUNT
 
     const handleSubmit = () => {
       const content = editorRef.current?.getEditorState()?.toJSON()
@@ -261,6 +303,7 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
           onFocus={onFocus}
           onMentionNodeMutation={handleMentionNodeMutation}
           onCreateImageMentionables={handleCreateImageMentionables}
+          mentionLimitReached={isMentionAtLimit}
           autoFocus={autoFocus}
         />
 
@@ -269,7 +312,11 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
             <ModelSelect />
           </div>
           <div className="zncz-chat-user-input-controls__buttons">
-            <ImageUploadButton onUpload={handleUploadImages} />
+            <ImageUploadButton
+              onUpload={handleUploadImages}
+              isAtLimit={isImageAtLimit}
+              onAtLimit={showImageLimitNotice}
+            />
             <SubmitButton onClick={() => handleSubmit()} />
           </div>
         </div>

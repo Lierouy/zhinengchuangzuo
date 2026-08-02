@@ -1,4 +1,5 @@
 import { ContentPart, RequestMessage } from '../../types/request'
+
 /**
  * Concatenates message contents, handling both string and ContentPart[] formats.
  * Returns either a string or ContentPart[] depending on the message role.

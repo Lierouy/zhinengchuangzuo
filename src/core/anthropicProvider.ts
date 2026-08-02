@@ -357,10 +357,7 @@ export class AnthropicProvider extends BaseLLMProvider<
                   source: {
                     type: 'base64',
                     media_type: mimeType as
-                      | 'image/jpeg'
-                      | 'image/png'
-                      | 'image/gif'
-                      | 'image/webp',
+                      'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
                     data: base64Data,
                   },
                 }

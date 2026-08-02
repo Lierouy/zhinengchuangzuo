@@ -11,7 +11,6 @@ import { OpenAIProvider } from './openaiProvider'
  * OpenAI-compatible provider includes token usage statistics
  * in the final chunk of the stream (following OpenAI's behavior).
  */
-
 export function getProviderClient({
   providerId,
   settings,

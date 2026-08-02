@@ -55,9 +55,7 @@ type RequestAssistantMessage = {
   content: string
 }
 export type RequestMessage =
-  | RequestSystemMessage
-  | RequestUserMessage
-  | RequestAssistantMessage
+  RequestSystemMessage | RequestUserMessage | RequestAssistantMessage
 
 export type LLMOptions = {
   signal?: AbortSignal
