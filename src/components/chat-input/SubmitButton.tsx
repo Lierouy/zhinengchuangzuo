@@ -1,12 +1,26 @@
-import { Send } from 'lucide-react'
+import { Ban, Send } from 'lucide-react'
 
-export function SubmitButton({ onClick }: { onClick: () => void }) {
+export function SubmitButton({
+  onClick,
+  isLoading = false,
+  onAbort,
+}: {
+  onClick: () => void
+  isLoading?: boolean
+  onAbort?: () => void
+}) {
   return (
-    <div className="zncz-chat-user-input-submit-button" onClick={onClick}>
+    <div
+      className="zncz-chat-user-input-submit-button"
+      onClick={isLoading && onAbort ? onAbort : onClick}
+      style={
+        isLoading ? { color: 'var(--blockquote-border-color)' } : undefined
+      }
+    >
       <div className="zncz-chat-user-input-submit-button-icons">
-        <Send size={12} />
+        {isLoading ? <Ban size={12} /> : <Send size={12} />}
       </div>
-      <div>发送</div>
+      <div>{isLoading ? '停止' : '发送'}</div>
     </div>
   )
 }

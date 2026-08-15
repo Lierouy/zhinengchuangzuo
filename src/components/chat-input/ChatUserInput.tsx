@@ -1,5 +1,4 @@
 import { LexicalEditor, SerializedEditorState, TextNode } from 'lexical'
-import { Ban } from 'lucide-react'
 import { Notice } from 'obsidian'
 import {
   forwardRef,
@@ -317,17 +316,13 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
               isAtLimit={isImageAtLimit}
               onAtLimit={showImageLimitNotice}
             />
-            <SubmitButton onClick={() => handleSubmit()} />
+            <SubmitButton
+              onClick={() => handleSubmit()}
+              isLoading={isLoading}
+              onAbort={onAbort}
+            />
           </div>
         </div>
-
-        {/* 停止按钮放在输入框容器内，完全固定不动 */}
-        {isLoading && onAbort && (
-          <button onClick={onAbort} className="zncz-stop-gen-btn">
-            <Ban size={16} />
-            <div>停止</div>
-          </button>
-        )}
       </div>
     )
   },
