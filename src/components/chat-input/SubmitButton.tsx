@@ -14,7 +14,13 @@ export function SubmitButton({
       className="zncz-chat-user-input-submit-button"
       onClick={isLoading && onAbort ? onAbort : onClick}
       style={
-        isLoading ? { color: 'var(--blockquote-border-color)' } : undefined
+        isLoading
+          ? {
+              color: 'var(--text-normal)',
+              backgroundColor: 'var(--blockquote-border-color)',
+              borderRadius: 'var(--radius-s)',
+            }
+          : undefined
       }
     >
       <div className="zncz-chat-user-input-submit-button-icons">
