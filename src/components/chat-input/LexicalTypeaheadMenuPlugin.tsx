@@ -15,7 +15,7 @@ import {
   TextNode,
   createCommand,
 } from 'lexical'
-import { useCallback, useEffect, useState } from 'react'
+import { JSX, useCallback, useEffect, useState } from 'react'
 
 import {
   LexicalMenu,
@@ -62,7 +62,7 @@ function tryToPositionRange(
   try {
     range.setStart(anchorNode, startOffset)
     range.setEnd(anchorNode, endOffset)
-  } catch (error) {
+  } catch {
     return false
   }
 

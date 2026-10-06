@@ -214,14 +214,11 @@ function ChatModelFormComponent({
                 new Notice(`Provider with ID ${value} not found`)
                 return
               }
-              setFormData(
-                (prev) =>
-                  ({
-                    ...prev,
-                    providerId: value,
-                    providerType: provider.type,
-                  }) as ChatModel,
-              )
+              setFormData((prev) => ({
+                ...prev,
+                providerId: value,
+                providerType: provider.type,
+              }))
             }}
           />
         </div>

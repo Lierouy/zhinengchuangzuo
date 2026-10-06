@@ -222,16 +222,13 @@ function ProviderFormComponent({
                 ] ?? false
               }
               onChange={(value: boolean) =>
-                setFormData(
-                  (prev) =>
-                    ({
-                      ...prev,
-                      additionalSettings: {
-                        ...(prev.additionalSettings ?? {}),
-                        [setting.key]: value,
-                      },
-                    }) as unknown as LLMProvider,
-                )
+                setFormData((prev) => ({
+                  ...prev,
+                  additionalSettings: {
+                    ...(prev.additionalSettings ?? {}),
+                    [setting.key]: value,
+                  },
+                }))
               }
             />
           ) : (

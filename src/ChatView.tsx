@@ -16,7 +16,7 @@ import { MentionableBlockData } from './types/mentionable'
 export class ChatView extends ItemView {
   private root: Root | null = null
   private initialChatProps?: ChatProps
-  private chatRef: React.RefObject<ChatRef> = React.createRef()
+  private chatRef: React.RefObject<ChatRef | null> = React.createRef()
 
   constructor(
     leaf: WorkspaceLeaf,

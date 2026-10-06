@@ -258,13 +258,13 @@ export class AnthropicProvider extends BaseLLMProvider<
         chunk.delta.type === reasoningField
       ) {
         const deltaAny = chunk.delta as unknown as Record<string, unknown>
-        const reasoningText = String(
+        const rawReasoning =
           deltaAny[reasoningField.replace('_delta', '')] ??
-            deltaAny.thinking ??
-            deltaAny.thought ??
-            deltaAny.text ??
-            '',
-        )
+          deltaAny.thinking ??
+          deltaAny.thought ??
+          deltaAny.text
+        const reasoningText =
+          typeof rawReasoning === 'string' ? rawReasoning : ''
         yield {
           id: messageId,
           choices: [
@@ -314,9 +314,9 @@ export class AnthropicProvider extends BaseLLMProvider<
     return reasoningBlocks
       .map((b) => {
         const rec = b as unknown as Record<string, unknown>
-        return String(
-          rec[reasoningField] ?? rec.text ?? rec.thought ?? rec.thinking ?? '',
-        )
+        const raw =
+          rec[reasoningField] ?? rec.text ?? rec.thought ?? rec.thinking
+        return typeof raw === 'string' ? raw : ''
       })
       .join('\n')
   }

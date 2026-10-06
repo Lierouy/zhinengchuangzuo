@@ -4,7 +4,7 @@ const PROGRAMMATIC_SCROLL_DEBOUNCE_MS = 50
 const SCROLL_AWAY_FROM_BOTTOM_THRESHOLD = 20
 
 type UseAutoScrollProps = {
-  scrollContainerRef: React.RefObject<HTMLElement>
+  scrollContainerRef: React.RefObject<HTMLElement | null>
 }
 
 export function useAutoScroll({ scrollContainerRef }: UseAutoScrollProps) {

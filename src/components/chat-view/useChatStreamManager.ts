@@ -410,7 +410,7 @@ export function useChatStreamManager({
               })
               try {
                 autoScrollToBottom()
-              } catch (e) {
+              } catch {
                 /* ignore scrolling errors */
               }
             }
@@ -448,7 +448,7 @@ export function useChatStreamManager({
           setChatMessages((prev) => [...prev, assistantMessage])
           try {
             autoScrollToBottom()
-          } catch (e) {
+          } catch {
             /* ignore scrolling errors */
           }
         }

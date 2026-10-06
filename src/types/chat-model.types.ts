@@ -3,17 +3,17 @@ import { z } from 'zod'
 const baseChatModelSchema = z.object({
   providerId: z
     .string({
-      required_error: 'Provider ID is required',
+      error: 'Provider ID is required',
     })
     .min(1, 'Provider ID is required'),
   id: z
     .string({
-      required_error: 'ID is required',
+      error: 'ID is required',
     })
     .min(1, 'ID is required'),
   model: z
     .string({
-      required_error: 'Model is required',
+      error: 'Model is required',
     })
     .min(1, 'Model is required'),
   enable: z.boolean().default(true).optional(),

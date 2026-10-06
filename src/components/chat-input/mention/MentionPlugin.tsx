@@ -4,7 +4,7 @@
  */
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { $createTextNode, COMMAND_PRIORITY_NORMAL, TextNode } from 'lexical'
-import { useCallback, useMemo, useState } from 'react'
+import { JSX, useCallback, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import { Mentionable } from '../../../types/mentionable'

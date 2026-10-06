@@ -83,8 +83,8 @@ function processEditorState(
 }
 
 export type LexicalContentEditableProps = {
-  editorRef: RefObject<LexicalEditor>
-  contentEditableRef: RefObject<HTMLDivElement>
+  editorRef: RefObject<LexicalEditor | null>
+  contentEditableRef: RefObject<HTMLDivElement | null>
   onChange?: (content: SerializedEditorState) => void
   onEnter?: (evt: KeyboardEvent) => void
   onFocus?: () => void

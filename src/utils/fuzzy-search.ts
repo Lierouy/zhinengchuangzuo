@@ -1,4 +1,4 @@
-import fuzzysort from 'fuzzysort'
+import { go as fuzzysortGo } from 'fuzzysort'
 import { App, TFile, TFolder } from 'obsidian'
 
 import { MentionableFile, MentionableFolder } from '../types/mentionable'
@@ -144,11 +144,10 @@ export function fuzzySearch(app: App, query: string): SearchableMentionable[] {
     return getEmptyQueryResult(searchItems, 15)
   }
 
-  const results = fuzzysort.go(query, searchItems, {
+  const results = fuzzysortGo(query, searchItems, {
     keys: ['path', 'name'],
     threshold: 0.3,
     limit: 15,
-    all: true,
     scoreFn: (result) =>
       scoreFnWithBoost({
         searchItem: result.obj,

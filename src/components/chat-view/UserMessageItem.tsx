@@ -48,10 +48,7 @@ export default function UserMessageItem({
         }))
 
       // 图片在前，文本在后
-      return [
-        ...images,
-        { type: 'text', text: textWithInternalLinks } as ContentPart,
-      ]
+      return [...images, { type: 'text', text: textWithInternalLinks }]
     }
     // 助手消息用 contentString
     const text =
@@ -60,7 +57,7 @@ export default function UserMessageItem({
         : message.content
           ? editorStateToPlainText(message.content)
           : ''
-    return [{ type: 'text', text } as ContentPart]
+    return [{ type: 'text', text }]
   }, [message])
 
   const contentString = useMemo(() => {

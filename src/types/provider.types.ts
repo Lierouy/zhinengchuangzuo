@@ -22,7 +22,7 @@ export const llmProviderSchema = z.discriminatedUnion('type', [
     ...baseLlmProviderSchema.shape,
     baseUrl: z
       .string({
-        required_error: 'Base URL is required',
+        error: 'Base URL is required',
       })
       .min(1, 'Base URL is required'),
     additionalSettings: z

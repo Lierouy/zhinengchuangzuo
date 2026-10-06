@@ -20,6 +20,7 @@ import {
   createCommand,
 } from 'lexical'
 import {
+  JSX,
   MutableRefObject,
   ReactPortal,
   useCallback,

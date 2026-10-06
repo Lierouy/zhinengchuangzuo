@@ -1,4 +1,4 @@
-import fuzzysort from 'fuzzysort'
+import { go as fuzzysortGo } from 'fuzzysort'
 import { App } from 'obsidian'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -156,11 +156,10 @@ export class TemplateManager extends AbstractJsonRepository<Template, string> {
 
   public async searchTemplates(query: string): Promise<Template[]> {
     const allMetadata = await this.listTemplates()
-    const results = fuzzysort.go(query, allMetadata, {
+    const results = fuzzysortGo(query, allMetadata, {
       keys: ['name'],
       threshold: 0.2,
       limit: 20,
-      all: true,
     })
 
     const templates = (
