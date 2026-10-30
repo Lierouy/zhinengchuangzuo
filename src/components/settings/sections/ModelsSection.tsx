@@ -120,7 +120,7 @@ export function ModelsSection({ app, plugin }: ModelsSectionProps) {
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={5}>
+              <td colSpan={4}>
                 <button
                   onClick={() => {
                     new AddChatModelModal(app, plugin).open()

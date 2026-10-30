@@ -21,8 +21,8 @@ import {
 } from 'lexical'
 import {
   JSX,
-  MutableRefObject,
   ReactPortal,
+  RefObject,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -47,7 +47,7 @@ export const PUNCTUATION =
 
 export class MenuOption {
   key: string
-  ref?: MutableRefObject<HTMLElement | null>
+  ref?: RefObject<HTMLElement | null>
 
   constructor(key: string) {
     this.key = key
@@ -61,7 +61,7 @@ export class MenuOption {
 }
 
 export type MenuRenderFn<TOption extends MenuOption> = (
-  anchorElementRef: MutableRefObject<HTMLElement | null>,
+  anchorElementRef: RefObject<HTMLElement | null>,
   itemProps: {
     selectedIndex: number | null
     selectOptionAndCleanUp: (option: TOption) => void
@@ -265,7 +265,7 @@ export function LexicalMenu<TOption extends MenuOption>({
 }: {
   close: () => void
   editor: LexicalEditor
-  anchorElementRef: MutableRefObject<HTMLElement | null>
+  anchorElementRef: RefObject<HTMLElement | null>
   resolution: MenuResolution
   options: TOption[]
   shouldSplitNodeWithQuery?: boolean
@@ -481,7 +481,7 @@ export function useMenuAnchorRef(
   className?: string,
   parent?: HTMLElement,
   shouldIncludePageYOffset__EXPERIMENTAL = true,
-): MutableRefObject<HTMLElement> {
+): RefObject<HTMLElement> {
   const [editor] = useLexicalComposerContext()
 
   // Derive the correct document from the editor root element so that

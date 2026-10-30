@@ -98,7 +98,7 @@ export function ProvidersSection({ app, plugin }: ProvidersSectionProps) {
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={4}>
+              <td colSpan={3}>
                 <button
                   onClick={() => {
                     new AddProviderModal(app, plugin).open()

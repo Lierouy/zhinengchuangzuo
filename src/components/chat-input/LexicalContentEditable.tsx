@@ -1,20 +1,25 @@
-import {
-  InitialConfigType,
-  InitialEditorStateType,
-  LexicalComposer,
-} from '@lexical/react/LexicalComposer'
 import { ContentEditable } from '@lexical/react/LexicalContentEditable'
 import { EditorRefPlugin } from '@lexical/react/LexicalEditorRefPlugin'
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
+import { LexicalExtensionComposer } from '@lexical/react/LexicalExtensionComposer'
 import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin'
 import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin'
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin'
 import {
+  InitialEditorStateType,
   LexicalEditor,
   SerializedEditorState,
   SerializedRootNode,
+  defineExtension,
 } from 'lexical'
-import { RefObject, useCallback, useEffect, useRef, useState } from 'react'
+import {
+  RefObject,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 
 import { useApp } from '../../contexts/app-context'
 import { MentionableImage } from '../../types/mentionable'
@@ -150,22 +155,52 @@ export default function LexicalContentEditable({
     }
   }, [editorKey, contentEditableRef])
 
-  const initialConfig: InitialConfigType = {
-    namespace: 'LexicalContentEditable',
-    theme: {
-      root: 'zncz-lexical-content-editable-root',
-      paragraph: 'zncz-lexical-content-editable-paragraph',
-    },
-    nodes: [MentionNode],
-    editorState: initialEditorState,
-    onError: (error) => {
-      console.error(error)
-    },
-  }
+  // `initialEditorState` is typically an inline function that changes on every
+  // render, but it is only read once when the editor is created. The memo below
+  // is keyed on `editorKey` (not on the prop) so the extension stays
+  // referentially stable — otherwise LexicalExtensionComposer would recreate
+  // the editor on every render — while still picking up the latest value when
+  // the composer is intentionally remounted.
+  const extension = useMemo(
+    () =>
+      defineExtension({
+        name: 'LexicalContentEditable',
+        namespace: 'LexicalContentEditable',
+        theme: {
+          root: 'zncz-lexical-content-editable-root',
+          paragraph: 'zncz-lexical-content-editable-paragraph',
+        },
+        nodes: [MentionNode],
+        onError: (error) => {
+          console.error(error)
+        },
+        // `$initialEditorState` accepts exactly the same shapes as the legacy
+        // `initialConfig.editorState` (null / string / EditorState / updater
+        // fn) and is handled with the same semantics by InitialStateExtension:
+        // - omitted  -> seed an empty paragraph (legacy default)
+        // - null     -> skip initialization entirely
+        // - string   -> parse + setEditorState
+        // - EditorState -> setEditorState
+        // - function -> run inside editor.update()
+        ...(initialEditorState !== undefined
+          ? { $initialEditorState: initialEditorState }
+          : {}),
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [editorKey],
+  )
 
   const searchResultByQuery = useCallback(
     (query: string) => fuzzySearch(app, query),
     [app],
+  )
+
+  // 保持回调引用稳定，避免每次渲染都向 OnMutationPlugin 传入新函数
+  const handleMentionMutation = useCallback(
+    (mutations: NodeMutations<MentionNode>) => {
+      onMentionNodeMutation?.(mutations)
+    },
+    [onMentionNodeMutation],
   )
 
   /*
@@ -182,7 +217,11 @@ export default function LexicalContentEditable({
   }, [autoFocus, contentEditableRef])
 
   return (
-    <LexicalComposer key={editorKey} initialConfig={initialConfig}>
+    <LexicalExtensionComposer
+      key={editorKey}
+      extension={extension}
+      contentEditable={null}
+    >
       {/* 
         There was two approach to make mentionable node copy and pasteable.
         1. use RichTextPlugin and reset text format when paste
@@ -217,15 +256,13 @@ export default function LexicalContentEditable({
       {onEnter && <OnEnterPlugin onEnter={onEnter} />}
       <OnMutationPlugin
         nodeClass={MentionNode}
-        onMutation={(mutations) => {
-          onMentionNodeMutation?.(mutations)
-        }}
+        onMutation={handleMentionMutation}
       />
       <EditorRefPlugin editorRef={editorRef} />
       <NoFormatPlugin />
       <ImagePastePlugin onCreateImageMentionables={onCreateImageMentionables} />
       <DragDropPaste onCreateImageMentionables={onCreateImageMentionables} />
       <TemplatePlugin />
-    </LexicalComposer>
+    </LexicalExtensionComposer>
   )
 }

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { TemplateManager } from '../../../database/template/TemplateManager'
 import { TemplateMetadata } from '../../../database/template/types'
-import { ObsidianButton } from '../../common/ObsidianButton'
 import { ConfirmModal } from '../../modals/ConfirmModal'
 import {
   CreateTemplateModal,
@@ -107,39 +106,50 @@ export function TemplateSection({ app }: TemplateSectionProps) {
         创建和编辑预设的提示内容，在会话框中输入 / 符号快速使用提示。
       </div>
 
-      <div className="zncz-templates-container">
-        <div className="zncz-templates-header">
-          <div>名称</div>
-          <div>排序</div>
-          <div>操作</div>
-        </div>
-        {!isLoading &&
-          templateList.length > 0 &&
-          templateList.map((template, idx) => (
-            <TemplateItem
-              key={template.id}
-              template={template}
-              isFirst={idx === 0}
-              isLast={idx === templateList.length - 1}
-              onMoveUp={() => handleMoveTemplate(idx, 'up')}
-              onMoveDown={() => handleMoveTemplate(idx, 'down')}
-              onDelete={() => {
-                handleDelete(template)
-              }}
-              onEdit={() => {
-                handleEdit(template)
-              }}
-            />
-          ))}
-      </div>
-      <div
-        style={{
-          margin: 'var(--size-2-2)',
-          display: 'flex',
-          justifyContent: 'flex-end',
-        }}
-      >
-        <ObsidianButton text="添加预设提示" onClick={handleCreate} />
+      <div className="zncz-settings-table-container">
+        <table className="zncz-settings-table">
+          <colgroup>
+            <col width="50%" />
+            <col width="40%" />
+            <col width="10%" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>名称</th>
+              <th>排序</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {!isLoading &&
+              templateList.length > 0 &&
+              templateList.map((template, idx) => (
+                <TemplateItem
+                  key={template.id}
+                  template={template}
+                  isFirst={idx === 0}
+                  isLast={idx === templateList.length - 1}
+                  onMoveUp={() => handleMoveTemplate(idx, 'up')}
+                  onMoveDown={() => handleMoveTemplate(idx, 'down')}
+                  onDelete={() => {
+                    handleDelete(template)
+                  }}
+                  onEdit={() => {
+                    handleEdit(template)
+                  }}
+                />
+              ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={3}>
+                <button onClick={handleCreate}>
+                  添加预设提示
+                </button>
+              </td>
+            </tr>
+          </tfoot>
+        </table>
       </div>
     </div>
   )
@@ -163,10 +173,10 @@ function TemplateItem({
   onDelete: () => void
 }) {
   return (
-    <div className="zncz-template">
-      <div className="zncz-template-row">
-        <div className="zncz-template-name">{template.name}</div>
-        <div className="zncz-template-actions">
+    <tr>
+      <td>{template.name}</td>
+      <td>
+        <div className="zncz-settings-actions">
           <button
             className="clickable-icon"
             onClick={onMoveUp}
@@ -182,7 +192,9 @@ function TemplateItem({
             <ArrowDown size={16} />
           </button>
         </div>
-        <div className="zncz-template-actions">
+      </td>
+      <td>
+        <div className="zncz-settings-actions">
           <button className="clickable-icon" onClick={onEdit}>
             <Edit size={16} />
           </button>
@@ -190,7 +202,7 @@ function TemplateItem({
             <Trash size={16} />
           </button>
         </div>
-      </div>
-    </div>
+      </td>
+    </tr>
   )
 }

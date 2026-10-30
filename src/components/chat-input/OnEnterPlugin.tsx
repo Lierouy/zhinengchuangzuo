@@ -12,8 +12,12 @@ export default function OnEnterPlugin({
   useEffect(() => {
     const removeListener = editor.registerCommand(
       KEY_ENTER_COMMAND,
-      (evt: KeyboardEvent) => {
-        if (!evt.shiftKey) {
+      // The payload is `KeyboardEvent | null`: Lexical also dispatches this
+      // command with a null payload when the intent is to insert a newline
+      // (e.g. programmatically). There is no modifier state to inspect in that
+      // case, so let the default behavior handle it.
+      (evt: KeyboardEvent | null) => {
+        if (evt === null || !evt.shiftKey) {
           return false
         }
         evt.preventDefault()
