@@ -143,9 +143,7 @@ export function TemplateSection({ app }: TemplateSectionProps) {
           <tfoot>
             <tr>
               <td colSpan={3}>
-                <button onClick={handleCreate}>
-                  添加预设提示
-                </button>
+                <button onClick={handleCreate}>添加预设提示</button>
               </td>
             </tr>
           </tfoot>
