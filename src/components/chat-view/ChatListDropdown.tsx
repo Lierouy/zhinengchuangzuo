@@ -200,7 +200,7 @@ export function ChatListDropdown({
         >
           <ul style={{ maxHeight: '425px' }}>
             {chatList.length === 0 ? (
-              <li className="zncz-chat-list-dropdown-empty">没有会话记录</li>
+              <li className="zncz-chat-list-dropdown-empty">(没有会话记录)</li>
             ) : (
               chatList.map((chat, index) => (
                 <ChatListItem

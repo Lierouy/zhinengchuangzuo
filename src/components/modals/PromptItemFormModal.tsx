@@ -86,7 +86,7 @@ function PromptItemFormComponent({
 
   // 连带激活的下拉选项（排除自身和会形成循环的选项）
   const chainOptions = useMemo(() => {
-    const options: Record<string, string> = { '': '无' }
+    const options: Record<string, string> = { '': '(无)' }
     if (!allPrompts) return options
 
     // 收集所有会形成循环的提示 ID
@@ -235,7 +235,7 @@ function PromptItemFormComponent({
           {/* 过滤词 */}
           <ObsidianSetting
             name="过滤词"
-            desc="进行额外逻辑判定，词之间用空格分隔，留空则不会过滤。"
+            desc="匹配后进行额外逻辑判断，词之间用空格分隔，留空则无过滤。"
           >
             <div style={{ marginTop: '3px' }} />
             <ObsidianDropdown<FilterLogic>

@@ -17,7 +17,7 @@ export function ModelSelect() {
     ? settings.chatModels.find((m) => m.model === settings.chatModelId)
     : null
   const displayText =
-    hasModels && currentModel ? currentModel.model : '前往设置界面添加模型'
+    hasModels && currentModel ? currentModel.model : '(在设置界面添加模型)'
 
   return (
     <DropdownMenu.Root open={isOpen} onOpenChange={setIsOpen}>
@@ -55,7 +55,7 @@ export function ModelSelect() {
               ))
             ) : (
               <li style={{ color: 'var(--text-muted)' }}>
-                前往设置界面添加模型
+                (在设置界面添加模型)
               </li>
             )}
           </ul>

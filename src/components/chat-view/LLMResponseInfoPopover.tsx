@@ -70,7 +70,7 @@ export default function LLMResponseInfoPopover({
         </Popover.Content>
       ) : (
         <Popover.Content className="zncz-popover-content">
-          <div>该模型无法统计数据</div>
+          <div>(无法统计数据)</div>
         </Popover.Content>
       )}
     </Popover.Root>

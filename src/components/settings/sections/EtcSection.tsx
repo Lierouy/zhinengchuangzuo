@@ -24,7 +24,7 @@ export function EtcSection({ app }: EtcSectionProps) {
   const handleResetSettings = () => {
     new ConfirmModal(app, {
       title: '初始化',
-      message: '确定要还原所有设置，并删除所有数据吗？此操作无法撤销。',
+      message: '确定要还原所有设置，并删除所有数据吗？此操作无法撤销！',
       ctaText: '确定',
       onConfirm: async () => {
         // 清除数据文件
