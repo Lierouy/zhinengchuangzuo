@@ -1,6 +1,5 @@
 import { go as fuzzysortGo } from 'fuzzysort'
 import { App } from 'obsidian'
-import { v4 as uuidv4 } from 'uuid'
 
 import { AbstractJsonRepository } from '../base'
 import { ROOT_DIR, TEMPLATE_DIR } from '../constants'
@@ -50,7 +49,7 @@ export class TemplateManager extends AbstractJsonRepository<Template, string> {
     }
 
     const newTemplate: Template = {
-      id: uuidv4(),
+      id: crypto.randomUUID(),
       ...template,
       sortOrder: Date.now(),
       createdAt: Date.now(),

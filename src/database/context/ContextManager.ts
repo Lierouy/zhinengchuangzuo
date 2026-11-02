@@ -1,5 +1,4 @@
 import { App } from 'obsidian'
-import { v4 as uuidv4 } from 'uuid'
 
 import { AbstractJsonRepository } from '../base'
 import { CONTEXT_DIR, ROOT_DIR } from '../constants'
@@ -47,7 +46,7 @@ export class ContextManager extends AbstractJsonRepository<
     }
 
     const newGroup: PromptGroup = {
-      id: uuidv4(),
+      id: crypto.randomUUID(),
       ...group,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -139,7 +138,7 @@ export class ContextManager extends AbstractJsonRepository<
     }
 
     const newItem: PromptItem = {
-      id: uuidv4(),
+      id: crypto.randomUUID(),
       ...item,
     }
 

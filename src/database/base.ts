@@ -1,5 +1,9 @@
 import { App, normalizePath } from 'obsidian'
-import path from 'path-browserify'
+
+const getBaseName = (filePath: string): string => {
+  const normalized = normalizePath(filePath)
+  return normalized.slice(normalized.lastIndexOf('/') + 1)
+}
 
 export abstract class AbstractJsonRepository<T, M> {
   protected dataDir: string
@@ -31,7 +35,7 @@ export abstract class AbstractJsonRepository<T, M> {
 
   public async create(row: T): Promise<void> {
     const fileName = this.generateFileName(row)
-    const filePath = normalizePath(path.join(this.dataDir, fileName))
+    const filePath = normalizePath(`${this.dataDir}/${fileName}`)
     const content = JSON.stringify(row, null, 2)
 
     if (await this.app.vault.adapter.exists(filePath)) {
@@ -48,11 +52,11 @@ export abstract class AbstractJsonRepository<T, M> {
 
     if (oldFileName === newFileName) {
       // Simple update - filename hasn't changed
-      const filePath = normalizePath(path.join(this.dataDir, oldFileName))
+      const filePath = normalizePath(`${this.dataDir}/${oldFileName}`)
       await this.app.vault.adapter.write(filePath, content)
     } else {
       // Filename has changed - create new file and delete old one
-      const newFilePath = normalizePath(path.join(this.dataDir, newFileName))
+      const newFilePath = normalizePath(`${this.dataDir}/${newFileName}`)
       await this.app.vault.adapter.write(newFilePath, content)
       await this.delete(oldFileName)
     }
@@ -62,7 +66,7 @@ export abstract class AbstractJsonRepository<T, M> {
   public async listMetadata(): Promise<(M & { fileName: string })[]> {
     const files = await this.app.vault.adapter.list(this.dataDir)
     return files.files
-      .map((filePath) => path.basename(filePath))
+      .map((filePath) => getBaseName(filePath))
       .filter((fileName) => fileName.endsWith('.json'))
       .map((fileName) => {
         const metadata = this.parseFileName(fileName)
@@ -74,7 +78,7 @@ export abstract class AbstractJsonRepository<T, M> {
   }
 
   public async read(fileName: string): Promise<T | null> {
-    const filePath = normalizePath(path.join(this.dataDir, fileName))
+    const filePath = normalizePath(`${this.dataDir}/${fileName}`)
     if (!(await this.app.vault.adapter.exists(filePath))) return null
 
     const content = await this.app.vault.adapter.read(filePath)
@@ -82,7 +86,7 @@ export abstract class AbstractJsonRepository<T, M> {
   }
 
   public async delete(fileName: string): Promise<void> {
-    const filePath = normalizePath(path.join(this.dataDir, fileName))
+    const filePath = normalizePath(`${this.dataDir}/${fileName}`)
     if (await this.app.vault.adapter.exists(filePath)) {
       await this.app.vault.adapter.remove(filePath)
     }

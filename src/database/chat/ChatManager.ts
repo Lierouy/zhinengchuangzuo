@@ -1,5 +1,4 @@
 import { App } from 'obsidian'
-import { v4 as uuidv4 } from 'uuid'
 
 import { AbstractJsonRepository } from '../base'
 import { CHAT_DIR, ROOT_DIR } from '../constants'
@@ -45,7 +44,7 @@ export class ChatManager extends AbstractJsonRepository<
 
     const now = Date.now()
     const newChat: ChatConversation = {
-      id: uuidv4(),
+      id: crypto.randomUUID(),
       title: '新会话',
       messages: [],
       createdAt: now,

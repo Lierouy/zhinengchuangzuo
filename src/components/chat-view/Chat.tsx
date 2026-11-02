@@ -17,7 +17,6 @@ import {
   useRef,
   useState,
 } from 'react'
-import { v4 as uuidv4 } from 'uuid'
 
 import { useApp } from '../../contexts/app-context'
 import { ChatContainerContext } from '../../contexts/chat-container-context'
@@ -69,7 +68,7 @@ const getNewInputMessage = (app: App): ChatUserMessage => {
     role: 'user',
     content: null,
     promptContent: null,
-    id: uuidv4(),
+    id: crypto.randomUUID(),
     mentionables: [
       {
         type: 'current-file',
@@ -151,7 +150,7 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
   const [conversationState, setConversationState] = useState<{
     conversationId: string
     chatMessages: ChatMessage[]
-  }>(() => ({ conversationId: uuidv4(), chatMessages: [] }))
+  }>(() => ({ conversationId: crypto.randomUUID(), chatMessages: [] }))
   const currentConversationId = conversationState.conversationId
   const chatMessages = conversationState.chatMessages
 
@@ -491,7 +490,10 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
 
   const handleNewChat = (selectedBlock?: MentionableBlockData) => {
     // 原子更新：同时重置 conversationId 和 chatMessages
-    setConversationState({ conversationId: uuidv4(), chatMessages: [] })
+    setConversationState({
+      conversationId: crypto.randomUUID(),
+      chatMessages: [],
+    })
     setCurrentPage(1)
     const newInputMessage = getNewInputMessage(app)
     if (selectedBlock) {
