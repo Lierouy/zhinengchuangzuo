@@ -1,7 +1,16 @@
 import { DropdownComponent } from 'obsidian'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 
-import { useObsidianSetting } from './ObsidianSetting'
+import {
+  ObsidianComponentFactory,
+  useObsidianComponent,
+} from './useObsidianComponent'
+
+const DROPDOWN_FACTORY: ObsidianComponentFactory<DropdownComponent> = {
+  addToSetting: (setting, register) => setting.addDropdown(register),
+  create: (container) => new DropdownComponent(container),
+  dispose: (dropdown) => dropdown.selectEl.remove(),
+}
 
 type ObsidianDropdownProps<T extends string = string> = {
   value: T
@@ -14,48 +23,25 @@ export function ObsidianDropdown<T extends string = string>({
   options,
   onChange,
 }: ObsidianDropdownProps<T>) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const { setting } = useObsidianSetting()
-  const [dropdownComponent, setDropdownComponent] =
-    useState<DropdownComponent | null>(null)
+  const { containerRef, component: dropdown } =
+    useObsidianComponent(DROPDOWN_FACTORY)
   const onChangeRef = useRef(onChange)
-
-  useEffect(() => {
-    if (setting) {
-      let newDropdownComponent: DropdownComponent | null = null
-      setting.addDropdown((component) => {
-        newDropdownComponent = component
-      })
-      setDropdownComponent(newDropdownComponent)
-
-      return () => {
-        newDropdownComponent?.selectEl.remove()
-      }
-    } else if (containerRef.current) {
-      const newDropdownComponent = new DropdownComponent(containerRef.current)
-      setDropdownComponent(newDropdownComponent)
-
-      return () => {
-        newDropdownComponent?.selectEl.remove()
-      }
-    }
-  }, [setting])
 
   useEffect(() => {
     onChangeRef.current = onChange
   }, [onChange])
 
   useEffect(() => {
-    if (!dropdownComponent) return
-    dropdownComponent.onChange((v) => onChangeRef.current(v as T))
-  }, [dropdownComponent])
+    if (!dropdown) return
+    dropdown.onChange((v) => onChangeRef.current(v as T))
+  }, [dropdown])
 
   useEffect(() => {
-    if (!dropdownComponent) return
-    dropdownComponent.selectEl.empty()
-    dropdownComponent.addOptions(options)
-    dropdownComponent.setValue(value)
-  }, [dropdownComponent, options, value])
+    if (!dropdown) return
+    dropdown.selectEl.empty()
+    dropdown.addOptions(options)
+    dropdown.setValue(value)
+  }, [dropdown, options, value])
 
   return <div ref={containerRef} />
 }

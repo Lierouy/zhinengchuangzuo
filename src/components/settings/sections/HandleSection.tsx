@@ -5,8 +5,10 @@ import { useSettings } from '../../../contexts/settings-context'
 import { TemplateManager } from '../../../database/template/TemplateManager'
 import { TemplateMetadata } from '../../../database/template/types'
 import { ObsidianDropdown } from '../../common/ObsidianDropdown'
+import { ObsidianNumberInput } from '../../common/ObsidianNumberInput'
 import { ObsidianSetting } from '../../common/ObsidianSetting'
-import { ObsidianTextInput } from '../../common/ObsidianTextInput'
+
+const isPositive = (n: number) => n > 0
 
 type HandleSectionProps = {
   app: App
@@ -58,30 +60,11 @@ export function HandleSection({
         desc="限制被链接附加的文件数量，留空使用默认值 20。"
       >
         <div style={{ marginTop: '3px' }} />
-        <ObsidianTextInput
-          type="number"
-          value={
-            settings.handleMaxLinks == null
-              ? ''
-              : String(settings.handleMaxLinks)
-          }
-          onChange={async (v: string) => {
-            const trimmed = v.trim()
-            if (trimmed === '') {
-              await setSettings({
-                ...settings,
-                handleMaxLinks: undefined,
-              })
-            } else {
-              const n = Number(trimmed)
-              if (!Number.isNaN(n) && n > 0) {
-                await setSettings({
-                  ...settings,
-                  handleMaxLinks: Math.trunc(n),
-                })
-              }
-            }
-          }}
+        <ObsidianNumberInput
+          value={settings.handleMaxLinks}
+          integer
+          accept={isPositive}
+          onChange={(n) => setSettings({ ...settings, handleMaxLinks: n })}
         />
       </ObsidianSetting>
 
@@ -90,30 +73,11 @@ export function HandleSection({
         desc="所有提交文件的总字数上限，留空使用默认值 300000。"
       >
         <div style={{ marginTop: '3px' }} />
-        <ObsidianTextInput
-          type="number"
-          value={
-            settings.handleMaxChars == null
-              ? ''
-              : String(settings.handleMaxChars)
-          }
-          onChange={async (v: string) => {
-            const trimmed = v.trim()
-            if (trimmed === '') {
-              await setSettings({
-                ...settings,
-                handleMaxChars: undefined,
-              })
-            } else {
-              const n = Number(trimmed)
-              if (!Number.isNaN(n) && n > 0) {
-                await setSettings({
-                  ...settings,
-                  handleMaxChars: Math.trunc(n),
-                })
-              }
-            }
-          }}
+        <ObsidianNumberInput
+          value={settings.handleMaxChars}
+          integer
+          accept={isPositive}
+          onChange={(n) => setSettings({ ...settings, handleMaxChars: n })}
         />
       </ObsidianSetting>
     </div>

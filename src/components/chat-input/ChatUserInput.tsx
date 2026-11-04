@@ -15,7 +15,7 @@ import {
   MentionableImage,
   SerializedMentionable,
 } from '../../types/mentionable'
-import { $findNodesOfType } from '../../utils/chat/lexical'
+import { $findNodesOfType, cleanupEditorState } from '../../utils/chat/lexical'
 import {
   deserializeMentionable,
   getMentionableKey,
@@ -24,6 +24,7 @@ import {
 import { fileToMentionableImage } from '../../utils/llm/image'
 import { openMarkdownFile } from '../../utils/obsidian'
 
+import { reportImageError } from './image/reportImageError'
 import { ImageUploadButton } from './ImageUploadButton'
 import LexicalContentEditable from './LexicalContentEditable'
 import { MentionNode } from './mention/MentionNode'
@@ -231,10 +232,14 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
     }
 
     const handleUploadImages = async (images: File[]) => {
-      const mentionableImages = await Promise.all(
-        images.map((image) => fileToMentionableImage(image)),
-      )
-      handleCreateImageMentionables(mentionableImages)
+      try {
+        const mentionableImages = await Promise.all(
+          images.map((image) => fileToMentionableImage(image)),
+        )
+        handleCreateImageMentionables(mentionableImages)
+      } catch (error) {
+        reportImageError(error)
+      }
     }
 
     const isImageAtLimit =
@@ -246,8 +251,9 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
         .length >= MAX_MENTION_COUNT
 
     const handleSubmit = () => {
-      const content = editorRef.current?.getEditorState()?.toJSON()
-      if (!content) return
+      const state = editorRef.current?.getEditorState()?.toJSON()
+      if (!state) return
+      const content = cleanupEditorState(state)
       // Errors are surfaced by the caller; avoid an unhandled rejection here.
       void Promise.resolve(onSubmit(content)).catch((error: unknown) => {
         console.error('Failed to submit message', error)

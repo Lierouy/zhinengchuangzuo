@@ -1,7 +1,16 @@
 import { TextAreaComponent } from 'obsidian'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 
-import { useObsidianSetting } from './ObsidianSetting'
+import {
+  ObsidianComponentFactory,
+  useObsidianComponent,
+} from './useObsidianComponent'
+
+const TEXT_AREA_FACTORY: ObsidianComponentFactory<TextAreaComponent> = {
+  addToSetting: (setting, register) => setting.addTextArea(register),
+  create: (container) => new TextAreaComponent(container),
+  dispose: (textArea) => textArea.inputEl.remove(),
+}
 
 type ObsidianTextAreaProps = {
   value: string
@@ -14,47 +23,24 @@ export function ObsidianTextArea({
   placeholder,
   onChange,
 }: ObsidianTextAreaProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const { setting } = useObsidianSetting()
-  const [textAreaComponent, setTextAreaComponent] =
-    useState<TextAreaComponent | null>(null)
+  const { containerRef, component: textArea } =
+    useObsidianComponent(TEXT_AREA_FACTORY)
   const onChangeRef = useRef(onChange)
-
-  useEffect(() => {
-    if (setting) {
-      let newTextAreaComponent: TextAreaComponent | null = null
-      setting.addTextArea((component) => {
-        newTextAreaComponent = component
-      })
-      setTextAreaComponent(newTextAreaComponent)
-
-      return () => {
-        newTextAreaComponent?.inputEl.remove()
-      }
-    } else if (containerRef.current) {
-      const newTextAreaComponent = new TextAreaComponent(containerRef.current)
-      setTextAreaComponent(newTextAreaComponent)
-
-      return () => {
-        newTextAreaComponent?.inputEl.remove()
-      }
-    }
-  }, [setting])
 
   useEffect(() => {
     onChangeRef.current = onChange
   }, [onChange])
 
   useEffect(() => {
-    if (!textAreaComponent) return
-    textAreaComponent.onChange((v) => onChangeRef.current(v))
-  }, [textAreaComponent])
+    if (!textArea) return
+    textArea.onChange((v) => onChangeRef.current(v))
+  }, [textArea])
 
   useEffect(() => {
-    if (!textAreaComponent) return
-    if (placeholder) textAreaComponent.setPlaceholder(placeholder)
-    textAreaComponent.setValue(value)
-  }, [textAreaComponent, value, placeholder])
+    if (!textArea) return
+    if (placeholder) textArea.setPlaceholder(placeholder)
+    textArea.setValue(value)
+  }, [textArea, value, placeholder])
 
   return <div ref={containerRef} />
 }

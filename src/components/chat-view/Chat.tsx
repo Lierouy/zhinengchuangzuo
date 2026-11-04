@@ -181,28 +181,39 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
       scrollContainerRef: chatMessagesRef,
     })
 
-  // 消息数变化时：新增 → 跳末页；删除 → 修正页码
+  // Single follow-and-scroll effect: on new messages jump to the last page
+  // (the page change re-runs this effect and performs the scroll); on page
+  // changes scroll to bottom for the last page or to top for history pages.
+  // Deletions never scroll; the clamp effect below handles their page count.
   const prevMessageCount = useRef<number>(0)
   useEffect(() => {
     const currLength = groupedChatMessages.length
     const prevLength = prevMessageCount.current
-    const delta = currLength - prevLength
     prevMessageCount.current = currLength
+    if (currLength < prevLength) return
 
-    const newTotalPages = Math.max(1, Math.ceil(currLength / PAGE_SIZE))
-
-    if (delta > 0) {
-      // 新增消息：自动跳到末页，已位于末页则立即滚动
-      if (currentPage < newTotalPages) {
-        setCurrentPage(newTotalPages)
-      } else {
-        forceScrollToBottom()
-      }
-    } else if (delta < 0 && currentPage > newTotalPages) {
-      // 删除消息导致当前页超限
-      setCurrentPage(newTotalPages)
+    if (currLength > prevLength && currentPage < totalPages) {
+      setCurrentPage(totalPages)
+      return
     }
-  }, [groupedChatMessages.length, currentPage, forceScrollToBottom])
+
+    // Wait two frames for React to render all messages in this page
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (currentPage === totalPages) {
+          forceScrollToBottom()
+        } else {
+          forceScrollToTop()
+        }
+      })
+    })
+  }, [
+    currentPage,
+    totalPages,
+    groupedChatMessages.length,
+    forceScrollToBottom,
+    forceScrollToTop,
+  ])
 
   // 页码超出总页数时（例如删除消息后）自动收敛，避免空白页
   useEffect(() => {
@@ -210,35 +221,6 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
       setCurrentPage(totalPages)
     }
   }, [currentPage, totalPages])
-
-  // Smart scrolling based on page position (skip on message deletion)
-  const prevScrollLen = useRef<number>(0)
-  useEffect(() => {
-    const currLen = groupedChatMessages.length
-    const isDecrease = currLen < prevScrollLen.current
-    prevScrollLen.current = currLen
-    // 消息减少时不滚动，避免删除操作触发意外跳转
-    if (isDecrease) return
-
-    const localTotalPages = Math.max(1, Math.ceil(currLen / PAGE_SIZE))
-    // Wait two frames for React to render all messages in this page
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (currentPage === localTotalPages) {
-          // Last page (newest messages): scroll to bottom
-          forceScrollToBottom()
-        } else {
-          // History pages: scroll to top
-          forceScrollToTop()
-        }
-      })
-    })
-  }, [
-    currentPage,
-    forceScrollToBottom,
-    forceScrollToTop,
-    groupedChatMessages.length,
-  ])
 
   const { abortActiveStreams, submitChatMutation, registerAbortController } =
     useChatStreamManager({

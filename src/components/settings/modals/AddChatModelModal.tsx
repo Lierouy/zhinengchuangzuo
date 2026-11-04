@@ -8,10 +8,12 @@ import { ChatModel, chatModelSchema } from '../../../types/chat-model.types'
 import { sanitizeModelSettings } from '../../../utils/model-settings'
 import { ObsidianButton } from '../../common/ObsidianButton'
 import { ObsidianDropdown } from '../../common/ObsidianDropdown'
+import { ObsidianNumberInput } from '../../common/ObsidianNumberInput'
 import { ObsidianSetting } from '../../common/ObsidianSetting'
 import { ObsidianTextInput } from '../../common/ObsidianTextInput'
 import { ObsidianToggle } from '../../common/ObsidianToggle'
 import { ReactModal } from '../../common/ReactModal'
+import { useEditableList } from '../../common/useEditableList'
 
 type ChatModelFormComponentProps = {
   plugin: ZhinengchuangzuoPlugin
@@ -77,59 +79,69 @@ function ChatModelFormComponent({
           },
         },
   )
-  const [editingIndex, setEditingIndex] = useState<number | null>(null)
-  const [editingValue, setEditingValue] = useState<string>('')
-  const [isAdding, setIsAdding] = useState(false)
-  const [newParamValue, setNewParamValue] = useState('')
+  const customParameters = formData.settings?.customParameters ?? []
+  const paramList = useEditableList(
+    customParameters,
+    (next) =>
+      setFormData((prev) => ({
+        ...prev,
+        settings: { ...prev.settings, customParameters: next },
+      })),
+    'The parameter content cannot be empty',
+  )
+
+  const updateNumericSetting = (
+    key: 'temperature' | 'topP' | 'maxTokens' | 'contextCount',
+    value: number | undefined,
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      settings: { ...prev.settings, [key]: value },
+    }))
+  }
 
   const handleSubmit = async () => {
     try {
-      const sanitizeFormSettings = (
-        s: typeof formData.settings | undefined,
-      ) => {
-        if (!s) return s
-        return sanitizeModelSettings(s)
+      const { chatModels, providers } = plugin.settings
+      const editIndex = chatModel
+        ? chatModels.findIndex((v) => v.model === chatModel.model)
+        : -1
+
+      if (!chatModel && chatModels.some((p) => p.model === formData.model)) {
+        throw new DuplicateChatModelException(formData.model)
       }
-      if (chatModel) {
-        const newModels = [...plugin.settings.chatModels]
-        const currentModelIndex = newModels.findIndex(
-          (v) => v.model === chatModel.model,
+      if (chatModel && editIndex === -1) {
+        new Notice(`This model has no model`)
+        return
+      }
+      if (!providers.some((provider) => provider.id === formData.providerId)) {
+        new Notice('Provider with this ID does not exist')
+        return
+      }
+
+      const completeData = {
+        ...formData,
+        settings: formData.settings
+          ? sanitizeModelSettings(formData.settings)
+          : undefined,
+        enable: chatModel ? chatModel.enable : true,
+      } as ChatModel
+
+      const validationResult = chatModelSchema.safeParse(completeData)
+      if (!validationResult.success) {
+        new Notice(
+          validationResult.error.issues.map((v) => v.message).join('\n'),
         )
+        return
+      }
 
-        if (currentModelIndex === -1) {
-          new Notice(`This model has no model`)
-          return
-        }
-
-        if (
-          !plugin.settings.providers.some(
-            (provider) => provider.id === formData.providerId,
-          )
-        ) {
-          new Notice('Provider with this ID does not exist')
-          return
-        }
-
-        const completeData = {
-          ...formData,
-          settings: sanitizeFormSettings(formData.settings),
-          enable: chatModel.enable,
-        } as ChatModel
-
-        const validationResult = chatModelSchema.safeParse(completeData)
-        if (!validationResult.success) {
-          new Notice(
-            validationResult.error.issues.map((v) => v.message).join('\n'),
-          )
-          return
-        }
-
+      if (chatModel) {
         await plugin.setSettings({
           ...plugin.settings,
           chatModels: [
-            ...plugin.settings.chatModels.slice(0, currentModelIndex),
+            ...chatModels.slice(0, editIndex),
             completeData,
-            ...plugin.settings.chatModels.slice(currentModelIndex + 1),
+            ...chatModels.slice(editIndex + 1),
           ],
           chatModelId:
             plugin.settings.chatModelId === chatModel.model
@@ -137,39 +149,9 @@ function ChatModelFormComponent({
               : plugin.settings.chatModelId,
         })
       } else {
-        // 添加时，检查模型名称是否重复
-        if (
-          plugin.settings.chatModels.some((p) => p.model === formData.model)
-        ) {
-          throw new DuplicateChatModelException(formData.model)
-        }
-
-        if (
-          !plugin.settings.providers.some(
-            (provider) => provider.id === formData.providerId,
-          )
-        ) {
-          new Notice('Provider with this ID does not exist')
-          return
-        }
-
-        const completeData = {
-          ...formData,
-          settings: sanitizeFormSettings(formData.settings),
-          enable: true,
-        } as ChatModel
-
-        const validationResult = chatModelSchema.safeParse(completeData)
-        if (!validationResult.success) {
-          new Notice(
-            validationResult.error.issues.map((v) => v.message).join('\n'),
-          )
-          return
-        }
-
         await plugin.setSettings({
           ...plugin.settings,
-          chatModels: [...plugin.settings.chatModels, completeData],
+          chatModels: [...chatModels, completeData],
         })
       }
 
@@ -242,57 +224,27 @@ function ChatModelFormComponent({
       {/* --- API Tunable Settings --- */}
       <ObsidianSetting name="采样温度">
         <div style={{ marginTop: '4px' }}>
-          <ObsidianTextInput
-            type="number"
-            value={String(formData.settings?.temperature ?? '')}
-            onChange={(v: string) => {
-              const num = v.trim() === '' ? NaN : Number(v)
-              setFormData((prev) => ({
-                ...prev,
-                settings: {
-                  ...prev.settings,
-                  temperature: isNaN(num) ? undefined : num,
-                },
-              }))
-            }}
+          <ObsidianNumberInput
+            value={formData.settings?.temperature}
+            onChange={(n) => updateNumericSetting('temperature', n)}
           />
         </div>
       </ObsidianSetting>
 
       <ObsidianSetting name="核心采样">
         <div style={{ marginTop: '8px' }}>
-          <ObsidianTextInput
-            type="number"
-            value={String(formData.settings?.topP ?? '')}
-            onChange={(v: string) => {
-              const num = v.trim() === '' ? NaN : Number(v)
-              setFormData((prev) => ({
-                ...prev,
-                settings: {
-                  ...prev.settings,
-                  topP: isNaN(num) ? undefined : num,
-                },
-              }))
-            }}
+          <ObsidianNumberInput
+            value={formData.settings?.topP}
+            onChange={(n) => updateNumericSetting('topP', n)}
           />
         </div>
       </ObsidianSetting>
 
       <ObsidianSetting name="输出词元数量">
         <div style={{ marginTop: '8px' }}>
-          <ObsidianTextInput
-            type="number"
-            value={String(formData.settings?.maxTokens ?? '')}
-            onChange={(v: string) => {
-              const num = v.trim() === '' ? NaN : Number(v)
-              setFormData((prev) => ({
-                ...prev,
-                settings: {
-                  ...prev.settings,
-                  maxTokens: isNaN(num) ? undefined : num,
-                },
-              }))
-            }}
+          <ObsidianNumberInput
+            value={formData.settings?.maxTokens}
+            onChange={(n) => updateNumericSetting('maxTokens', n)}
           />
         </div>
       </ObsidianSetting>
@@ -302,19 +254,9 @@ function ChatModelFormComponent({
         desc="发送消息时包含的过去消息数量上限，留空使用默认值 50。"
       >
         <div style={{ marginTop: '8px' }}>
-          <ObsidianTextInput
-            type="number"
-            value={String(formData.settings?.contextCount ?? '')}
-            onChange={(v: string) => {
-              const num = v.trim() === '' ? NaN : Number(v)
-              setFormData((prev) => ({
-                ...prev,
-                settings: {
-                  ...prev.settings,
-                  contextCount: isNaN(num) ? undefined : num,
-                },
-              }))
-            }}
+          <ObsidianNumberInput
+            value={formData.settings?.contextCount}
+            onChange={(n) => updateNumericSetting('contextCount', n)}
           />
         </div>
       </ObsidianSetting>
@@ -351,13 +293,13 @@ function ChatModelFormComponent({
             <col width="10%" />
           </colgroup>
           <tbody>
-            {(formData.settings?.customParameters ?? []).map((param, idx) => (
+            {customParameters.map((param, idx) => (
               <tr key={idx}>
                 <td>
-                  {editingIndex === idx ? (
+                  {paramList.editingIndex === idx ? (
                     <ObsidianTextInput
-                      value={editingValue}
-                      onChange={(v: string) => setEditingValue(v)}
+                      value={paramList.editingValue}
+                      onChange={paramList.setEditingValue}
                     />
                   ) : (
                     <div>{param}</div>
@@ -365,38 +307,16 @@ function ChatModelFormComponent({
                 </td>
                 <td>
                   <div className="zncz-settings-actions">
-                    {editingIndex === idx ? (
+                    {paramList.editingIndex === idx ? (
                       <>
                         <button
-                          onClick={() => {
-                            const trimmed = editingValue.trim()
-                            if (!trimmed) {
-                              new Notice(
-                                'The parameter content cannot be empty',
-                              )
-                              return
-                            }
-                            const newParams = (
-                              formData.settings?.customParameters ?? []
-                            ).slice()
-                            newParams[idx] = trimmed
-                            setFormData((prev) => ({
-                              ...prev,
-                              settings: {
-                                ...prev.settings,
-                                customParameters: newParams,
-                              },
-                            }))
-                            setEditingIndex(null)
-                          }}
+                          onClick={paramList.commitEdit}
                           className="clickable-icon"
                         >
                           <Check size={16} />
                         </button>
                         <button
-                          onClick={() => {
-                            setEditingIndex(null)
-                          }}
+                          onClick={paramList.cancelEdit}
                           className="clickable-icon"
                         >
                           <X size={16} />
@@ -405,28 +325,13 @@ function ChatModelFormComponent({
                     ) : (
                       <>
                         <button
-                          onClick={() => {
-                            setEditingIndex(idx)
-                            setEditingValue(param)
-                            setIsAdding(false)
-                          }}
+                          onClick={() => paramList.startEdit(idx)}
                           className="clickable-icon"
                         >
                           <Edit size={16} />
                         </button>
                         <button
-                          onClick={() => {
-                            const newParams = (
-                              formData.settings?.customParameters ?? []
-                            ).filter((_, i) => i !== idx)
-                            setFormData((prev) => ({
-                              ...prev,
-                              settings: {
-                                ...prev.settings,
-                                customParameters: newParams,
-                              },
-                            }))
-                          }}
+                          onClick={() => paramList.remove(idx)}
                           className="clickable-icon"
                         >
                           <Trash size={16} />
@@ -437,44 +342,24 @@ function ChatModelFormComponent({
                 </td>
               </tr>
             ))}
-            {isAdding && (
+            {paramList.isAdding && (
               <tr>
                 <td>
                   <ObsidianTextInput
-                    value={newParamValue}
-                    onChange={(v: string) => setNewParamValue(v)}
+                    value={paramList.newValue}
+                    onChange={paramList.setNewValue}
                   />
                 </td>
                 <td>
                   <div className="zncz-settings-actions">
                     <button
-                      onClick={() => {
-                        const trimmed = newParamValue.trim()
-                        if (!trimmed) {
-                          new Notice('The parameter content cannot be empty')
-                          return
-                        }
-                        const current =
-                          formData.settings?.customParameters ?? []
-                        setFormData((prev) => ({
-                          ...prev,
-                          settings: {
-                            ...prev.settings,
-                            customParameters: [...current, trimmed],
-                          },
-                        }))
-                        setIsAdding(false)
-                        setNewParamValue('')
-                      }}
+                      onClick={paramList.commitAdd}
                       className="clickable-icon"
                     >
                       <Check size={16} />
                     </button>
                     <button
-                      onClick={() => {
-                        setIsAdding(false)
-                        setNewParamValue('')
-                      }}
+                      onClick={paramList.cancelAdd}
                       className="clickable-icon"
                     >
                       <X size={16} />
@@ -489,13 +374,8 @@ function ChatModelFormComponent({
             <tr>
               <td colSpan={2}>
                 <button
-                  onClick={() => {
-                    if (editingIndex !== null) return
-                    setIsAdding(true)
-                    setNewParamValue('')
-                    setEditingIndex(null)
-                  }}
-                  disabled={isAdding}
+                  onClick={paramList.startAdd}
+                  disabled={paramList.isAdding}
                 >
                   添加参数
                 </button>

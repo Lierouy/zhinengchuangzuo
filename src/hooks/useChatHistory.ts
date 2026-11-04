@@ -1,4 +1,3 @@
-import { SerializedRootNode } from 'lexical'
 import debounce from 'lodash.debounce'
 import isEqual from 'lodash.isequal'
 import { App } from 'obsidian'
@@ -9,6 +8,7 @@ import { useApp } from '../contexts/app-context'
 import { ChatConversationMetadata } from '../database/chat/types'
 import { ChatMessage, SerializedChatMessage } from '../types/chat'
 import { Mentionable } from '../types/mentionable'
+import { cleanupEditorState } from '../utils/chat/lexical'
 import {
   deserializeMentionable,
   serializeMentionable,
@@ -204,65 +204,13 @@ export function useChatHistory(): UseChatHistory {
   }
 }
 
-// 精简 Lexical editor state，只保留必要属性
-function cleanupLexicalNode(node: unknown): unknown {
-  if (node === null || typeof node !== 'object') {
-    return node
-  }
-
-  if (Array.isArray(node)) {
-    return node.map(cleanupLexicalNode)
-  }
-
-  const cleaned: Record<string, unknown> = {}
-
-  // 总是保留 type
-  if ('type' in node) {
-    cleaned.type = node.type
-  }
-
-  // 总是保留 children 并递归清理
-  if ('children' in node) {
-    cleaned.children = cleanupLexicalNode(node.children)
-  }
-
-  // 文本节点只保留 text
-  if ('text' in node && typeof node.text === 'string') {
-    cleaned.text = node.text
-  }
-
-  // 换行符无需其他属性
-  if ('type' in node && node.type === 'linebreak') {
-    return { type: 'linebreak' }
-  }
-
-  // 只保留最必要的结构属性，尽可能精简
-  // 只保留非零的 indent
-  if ('indent' in node && node.indent !== 0) {
-    cleaned.indent = node.indent
-  }
-
-  // 以下字段全部删除，不需要：
-  // detail, mode, style, version, format, textFormat, textStyle, direction
-  // 这些字段不保存，节省存储空间
-
-  return cleaned
-}
-
 const serializeChatMessage = (message: ChatMessage): SerializedChatMessage => {
   switch (message.role) {
     case 'user': {
-      let cleanedContent = message.content
-      if (message.content) {
-        // 清理 content，只保留必要属性
-        cleanedContent = {
-          ...message.content,
-          root: cleanupLexicalNode(message.content.root) as SerializedRootNode,
-        }
-      }
       return {
         role: 'user',
-        content: cleanedContent,
+        // Editor state is kept in full in memory and only trimmed here, at save time.
+        content: message.content ? cleanupEditorState(message.content) : null,
         promptContent: message.promptContent, // 已经是 null 了
         id: message.id,
         mentionables: message.mentionables.map(serializeMentionable),

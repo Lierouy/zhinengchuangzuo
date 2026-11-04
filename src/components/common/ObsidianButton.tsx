@@ -1,7 +1,16 @@
 import { ButtonComponent } from 'obsidian'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 
-import { useObsidianSetting } from './ObsidianSetting'
+import {
+  ObsidianComponentFactory,
+  useObsidianComponent,
+} from './useObsidianComponent'
+
+const BUTTON_FACTORY: ObsidianComponentFactory<ButtonComponent> = {
+  addToSetting: (setting, register) => setting.addButton(register),
+  create: (container) => new ButtonComponent(container),
+  dispose: (button) => button.buttonEl.remove(),
+}
 
 type ObsidianButtonProps = {
   text?: string
@@ -22,52 +31,28 @@ export function ObsidianButton({
   warning,
   disabled,
 }: ObsidianButtonProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const { setting } = useObsidianSetting()
-  const [buttonComponent, setButtonComponent] =
-    useState<ButtonComponent | null>(null)
+  const { containerRef, component: button } =
+    useObsidianComponent(BUTTON_FACTORY)
   const onClickRef = useRef(onClick)
-
-  useEffect(() => {
-    if (setting) {
-      let newButtonComponent: ButtonComponent | null = null
-      setting.addButton((component) => {
-        newButtonComponent = component
-      })
-      setButtonComponent(newButtonComponent)
-
-      return () => {
-        newButtonComponent?.buttonEl.remove()
-      }
-    } else if (containerRef.current) {
-      const newButtonComponent = new ButtonComponent(containerRef.current)
-      setButtonComponent(newButtonComponent)
-
-      return () => {
-        newButtonComponent?.buttonEl.remove()
-      }
-    }
-  }, [setting])
 
   useEffect(() => {
     onClickRef.current = onClick
   }, [onClick])
 
   useEffect(() => {
-    if (!buttonComponent) return
-    buttonComponent.onClick(() => onClickRef.current())
-  }, [buttonComponent])
+    if (!button) return
+    button.onClick(() => onClickRef.current())
+  }, [button])
 
   useEffect(() => {
-    if (!buttonComponent) return
-
-    if (text) buttonComponent.setButtonText(text)
-    if (icon) buttonComponent.setIcon(icon)
-    if (tooltip) buttonComponent.setTooltip(tooltip)
-    if (cta) buttonComponent.setCta()
-    if (warning) buttonComponent.setWarning()
-    buttonComponent.setDisabled(!!disabled)
-  }, [buttonComponent, text, icon, tooltip, cta, warning, disabled])
+    if (!button) return
+    if (text) button.setButtonText(text)
+    if (icon) button.setIcon(icon)
+    if (tooltip) button.setTooltip(tooltip)
+    if (cta) button.setCta()
+    if (warning) button.setWarning()
+    button.setDisabled(!!disabled)
+  }, [button, text, icon, tooltip, cta, warning, disabled])
 
   return <div ref={containerRef} />
 }

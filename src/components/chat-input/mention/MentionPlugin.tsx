@@ -23,18 +23,16 @@ import {
 } from '../../../utils/chat/mentionable'
 import { SearchableMentionable } from '../../../utils/fuzzy-search'
 import { getMentionableIcon } from '../../chat-input/get-metionable-icon'
-import { MenuOption, MenuTextMatch } from '../LexicalMenu'
+import { MenuOption, MenuTextMatch, PUNCTUATION } from '../LexicalMenu'
 import { LexicalTypeaheadMenuPlugin } from '../LexicalTypeaheadMenuPlugin'
 import { MENTION_TRIGGER, isOtherTriggerActive } from '../typeahead-triggers'
 
 import { $createMentionNode } from './MentionNode'
 
-const PUNC = '\\.,\\+\\*\\?\\$\\@\\|#{}\\(\\)\\^\\-\\[\\]\\\\/!%\'"~=<>_:;'
-
 const TRIGGERS = MENTION_TRIGGER
 
 // Chars we expect to see in a mention (non-space, non-punctuation).
-const VALID_CHARS = '[^' + TRIGGERS + PUNC + '\\s]'
+const VALID_CHARS = '[^' + TRIGGERS + PUNCTUATION + '\\s]'
 
 // Non-standard series of chars. Each series must be preceded and followed by
 // a valid char.
@@ -43,7 +41,7 @@ const VALID_JOINS =
   '\\.[ |$]|' + // E.g. "r. " in "Mr. Smith"
   ' |' + // E.g. " " in "Josh Duck"
   '[' +
-  PUNC +
+  PUNCTUATION +
   ']|' + // E.g. "-' in "Salier-Hellendag"
   ')'
 

@@ -6,6 +6,8 @@ import { useEffect } from 'react'
 import { MentionableImage } from '../../../types/mentionable'
 import { fileToMentionableImage } from '../../../utils/llm/image'
 
+import { reportImageError } from './reportImageError'
+
 export default function DragDropPaste({
   onCreateImageMentionables,
 }: {
@@ -17,13 +19,12 @@ export default function DragDropPaste({
     return editor.registerCommand(
       DRAG_DROP_PASTE, // dispatched in RichTextPlugin
       (files) => {
-        ;(async () => {
-          const images = files.filter((file) => file.type.startsWith('image/'))
-          const mentionableImages = await Promise.all(
-            images.map(async (image) => await fileToMentionableImage(image)),
-          )
-          onCreateImageMentionables?.(mentionableImages)
-        })()
+        const images = files.filter((file) => file.type.startsWith('image/'))
+        Promise.all(images.map((image) => fileToMentionableImage(image)))
+          .then((mentionableImages) => {
+            onCreateImageMentionables?.(mentionableImages)
+          })
+          .catch(reportImageError)
         return true
       },
       COMMAND_PRIORITY_LOW,

@@ -9,7 +9,6 @@ import {
   InitialEditorStateType,
   LexicalEditor,
   SerializedEditorState,
-  SerializedRootNode,
   defineExtension,
 } from 'lexical'
 import {
@@ -23,6 +22,7 @@ import {
 
 import { useApp } from '../../contexts/app-context'
 import { MentionableImage } from '../../types/mentionable'
+import { cleanupEditorState } from '../../utils/chat/lexical'
 import { fuzzySearch } from '../../utils/fuzzy-search'
 
 import DragDropPaste from './image/DragDropPastePlugin'
@@ -33,59 +33,6 @@ import NoFormatPlugin from './NoFormatPlugin'
 import OnEnterPlugin from './OnEnterPlugin'
 import OnMutationPlugin, { NodeMutations } from './OnMutationPlugin'
 import TemplatePlugin from './TemplatePlugin'
-
-// 从源头清理所有不需要的字段
-function cleanupLexicalNode(node: unknown): unknown {
-  if (node === null || typeof node !== 'object') {
-    return node
-  }
-
-  if (Array.isArray(node)) {
-    return node.map(cleanupLexicalNode)
-  }
-
-  const newNode: Record<string, unknown> = {}
-
-  // 总是保留 type
-  if ('type' in node) {
-    newNode.type = node.type
-  }
-
-  // 总是保留 children 并递归清理
-  if ('children' in node) {
-    newNode.children = cleanupLexicalNode(node.children)
-  }
-
-  // 文本节点只保留 text
-  if ('text' in node && typeof node.text === 'string') {
-    newNode.text = node.text
-  }
-
-  // 换行符无需其他属性
-  if ('type' in node && node.type === 'linebreak') {
-    return { type: 'linebreak' }
-  }
-
-  // 只保留最必要的结构属性，尽可能精简
-  // 只保留非零的 indent
-  if ('indent' in node && node.indent !== 0) {
-    newNode.indent = node.indent
-  }
-
-  // 以下字段全部删除，不需要：
-  // detail, mode, style, version, format, textFormat, textStyle, direction
-  // 这些字段不保存，节省存储空间
-  return newNode
-}
-
-function processEditorState(
-  state: SerializedEditorState,
-): SerializedEditorState {
-  return {
-    ...state,
-    root: cleanupLexicalNode(state.root) as SerializedRootNode,
-  }
-}
 
 export type LexicalContentEditableProps = {
   editorRef: RefObject<LexicalEditor | null>
@@ -249,8 +196,7 @@ export default function LexicalContentEditable({
       />
       <OnChangePlugin
         onChange={(editorState) => {
-          const state = editorState.toJSON()
-          onChange?.(processEditorState(state))
+          onChange?.(cleanupEditorState(editorState.toJSON()))
         }}
       />
       {onEnter && <OnEnterPlugin onEnter={onEnter} />}

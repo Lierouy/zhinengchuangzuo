@@ -7,6 +7,10 @@ type UseAutoScrollProps = {
   scrollContainerRef: React.RefObject<HTMLElement | null>
 }
 
+// The scrollbar belongs to Obsidian's `.view-content` ancestor, not to the chat container.
+const findViewContent = (element: HTMLElement) =>
+  element.closest<HTMLElement>('.view-content')
+
 export function useAutoScroll({ scrollContainerRef }: UseAutoScrollProps) {
   const preventAutoScrollRef = useRef(false)
   const lastProgrammaticScrollRef = useRef<number>(0)
@@ -36,22 +40,11 @@ export function useAutoScroll({ scrollContainerRef }: UseAutoScrollProps) {
   }, [scrollContainerRef])
 
   const scrollToBottom = useCallback(() => {
-    if (scrollContainerRef.current) {
-      const scrollContainer = scrollContainerRef.current
-      lastProgrammaticScrollRef.current = Date.now()
-      // Find real Obsidian parent container with scrollbar
-      let target: HTMLElement | null = scrollContainer
-      while (target) {
-        if (target.classList.contains('view-content')) {
-          target.scrollTo({
-            top: target.scrollHeight,
-            behavior: 'smooth',
-          })
-          break
-        }
-        target = target.parentElement
-      }
-    }
+    const scrollContainer = scrollContainerRef.current
+    if (!scrollContainer) return
+    lastProgrammaticScrollRef.current = Date.now()
+    const viewContent = findViewContent(scrollContainer)
+    viewContent?.scrollTo({ top: viewContent.scrollHeight, behavior: 'smooth' })
   }, [scrollContainerRef])
 
   // Auto-scrolls to bottom only if the scroll position is near the bottom
@@ -69,19 +62,9 @@ export function useAutoScroll({ scrollContainerRef }: UseAutoScrollProps) {
 
   const forceScrollToTop = useCallback(() => {
     preventAutoScrollRef.current = false
-    if (scrollContainerRef.current) {
-      let target: HTMLElement | null = scrollContainerRef.current
-      while (target) {
-        if (target.classList.contains('view-content')) {
-          target.scrollTo({
-            top: 0,
-            behavior: 'smooth',
-          })
-          break
-        }
-        target = target.parentElement
-      }
-    }
+    const scrollContainer = scrollContainerRef.current
+    if (!scrollContainer) return
+    findViewContent(scrollContainer)?.scrollTo({ top: 0, behavior: 'smooth' })
   }, [scrollContainerRef])
 
   return {

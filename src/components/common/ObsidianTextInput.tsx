@@ -1,7 +1,16 @@
 import { TextComponent } from 'obsidian'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 
-import { useObsidianSetting } from './ObsidianSetting'
+import {
+  ObsidianComponentFactory,
+  useObsidianComponent,
+} from './useObsidianComponent'
+
+const TEXT_INPUT_FACTORY: ObsidianComponentFactory<TextComponent> = {
+  addToSetting: (setting, register) => setting.addText(register),
+  create: (container) => new TextComponent(container),
+  dispose: (text) => text.inputEl.remove(),
+}
 
 type ObsidianTextInputProps = {
   value: string
@@ -16,47 +25,25 @@ export function ObsidianTextInput({
   onChange,
   type,
 }: ObsidianTextInputProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const { setting } = useObsidianSetting()
-  const [textComponent, setTextComponent] = useState<TextComponent | null>(null)
+  const { containerRef, component: textInput } =
+    useObsidianComponent(TEXT_INPUT_FACTORY)
   const onChangeRef = useRef(onChange)
-
-  useEffect(() => {
-    if (setting) {
-      let newTextComponent: TextComponent | null = null
-      setting.addText((component) => {
-        newTextComponent = component
-      })
-      setTextComponent(newTextComponent)
-
-      return () => {
-        newTextComponent?.inputEl.remove()
-      }
-    } else if (containerRef.current) {
-      const newTextComponent = new TextComponent(containerRef.current)
-      setTextComponent(newTextComponent)
-
-      return () => {
-        newTextComponent?.inputEl.remove()
-      }
-    }
-  }, [setting])
 
   useEffect(() => {
     onChangeRef.current = onChange
   }, [onChange])
 
   useEffect(() => {
-    if (!textComponent) return
-    textComponent.onChange((v) => onChangeRef.current(v))
-  }, [textComponent])
+    if (!textInput) return
+    textInput.onChange((v) => onChangeRef.current(v))
+  }, [textInput])
 
   useEffect(() => {
-    if (!textComponent) return
-    textComponent.setValue(value)
-    if (placeholder) textComponent.setPlaceholder(placeholder)
-    if (type) textComponent.inputEl.type = type
-  }, [textComponent, value, placeholder, type])
+    if (!textInput) return
+    textInput.setValue(value)
+    if (placeholder) textInput.setPlaceholder(placeholder)
+    if (type) textInput.inputEl.type = type
+  }, [textInput, value, placeholder, type])
 
   return <div ref={containerRef} />
 }

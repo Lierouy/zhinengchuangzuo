@@ -1,9 +1,12 @@
 import { MentionableImage } from '../../types/mentionable'
 
-const MAX_IMAGE_SIZE = 1024 * 512 // 512 KB
-const MAX_DIMENSION = 2160 // 最大边长：预缩放时较长边的目标值
-const SHORT_DIMENSION = 540 // 较短边长：短边超过此值才触发预缩放
-const MIN_DIMENSION = 1080 // 最小边长：递归压缩的地板值，防止缩得过小
+const MAX_IMAGE_BYTES = 1024 * 512 // 压缩目标：原始字节 ≤ 512 KB
+const MAX_LONG_SIDE = 2048 // 长边上限：主流视觉模型的有效分辨率
+const MAX_PIXELS = 2_000_000 // 像素预算：约束极端长宽比的总开销
+const INITIAL_QUALITY = 0.85 // 首次编码质量
+const MIN_QUALITY = 0.55 // 质量下限：再低文字/线条会糊
+const MAX_ENCODE_ATTEMPTS = 5 // 单次压缩最多编码次数
+const JPEG_MIME_TYPE = 'image/jpeg'
 
 export function parseImageDataUrl(dataUrl: string): {
   mimeType: string
@@ -17,253 +20,212 @@ export function parseImageDataUrl(dataUrl: string): {
   return { mimeType, base64Data }
 }
 
-//  内部辅助函数
-/**
- * 缩小尺寸一步：×0.9 但不跌破 MIN_DIMENSION
- * 如果当前尺寸已经 ≤ MIN_DIMENSION，返回原值（不会再放大）
- */
-function shrinkDim(d: number): number {
-  if (d <= MIN_DIMENSION) return d
-  return Math.max(Math.round(d * 0.9), MIN_DIMENSION)
+type DecodedImage = {
+  source: CanvasImageSource
+  width: number
+  height: number
+  /** 回退解码时顺带得到的 data URL，可复用以省一次读取 */
+  dataUrl?: string
+  release: () => void
 }
 
 /**
- * 将图片以指定 quality 编码为 JPEG data URL，返回 { dataUrl, sizeInBytes }
- * 接受 HTMLImageElement 或 ImageBitmap 作为源
+ * 把长宽等比缩放到长边 / 像素预算之内。已在预算内则原样返回。
  */
-function encodeJPEG(
-  canvas: HTMLCanvasElement,
-  ctx: CanvasRenderingContext2D,
-  source: CanvasImageSource,
+function fitToBudget(
   width: number,
   height: number,
-  quality: number,
-): { dataUrl: string; sizeInBytes: number } {
-  canvas.width = width
-  canvas.height = height
-  ctx.drawImage(source, 0, 0, width, height)
-  const dataUrl = canvas.toDataURL('image/jpeg', quality)
-  const { base64Data } = parseImageDataUrl(dataUrl)
-  const sizeInBytes = Math.round((base64Data.length * 3) / 4)
-  return { dataUrl, sizeInBytes }
-}
-
-//  递归压缩（纯 canvas 逻辑）
-/**
- * 尝试压缩：先降 quality，quality 耗尽后缩尺寸再重试
- * 流程：
- * quality 0.9 → 0.8 → ... → 0.2
- * ↓ 仍超限
- * 缩尺寸 ×0.9，reset quality 0.9，再来一轮
- * ↓ 缩不动了
- * 认命返回当前结果
- */
-function tryCompress(
-  canvas: HTMLCanvasElement,
-  ctx: CanvasRenderingContext2D,
-  source: CanvasImageSource,
-  width: number,
-  height: number,
-  maxSizeBytes: number,
-  quality: number,
-): string {
-  const { dataUrl, sizeInBytes } = encodeJPEG(
-    canvas,
-    ctx,
-    source,
-    width,
-    height,
-    quality,
+): { width: number; height: number } {
+  const scale = Math.min(
+    1,
+    MAX_LONG_SIDE / Math.max(width, height),
+    Math.sqrt(MAX_PIXELS / (width * height)),
   )
-
-  // 满足大小限制 → 成功
-  if (sizeInBytes <= maxSizeBytes) return dataUrl
-
-  // 质量还没到底 → 降一档重试
-  if (quality > 0.2) {
-    return tryCompress(
-      canvas,
-      ctx,
-      source,
-      width,
-      height,
-      maxSizeBytes,
-      quality - 0.1,
-    )
+  if (scale >= 1) {
+    return { width, height }
   }
-
-  // 质量已到底 → 尝试缩小尺寸，然后重置 quality 再来一轮
-  const newWidth = shrinkDim(width)
-  const newHeight = shrinkDim(height)
-
-  if (newWidth < width || newHeight < height) {
-    return tryCompress(
-      canvas,
-      ctx,
-      source,
-      newWidth,
-      newHeight,
-      maxSizeBytes,
-      0.9,
-    )
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
   }
-
-  // 缩无可缩 → 认命返回当前结果
-  return dataUrl
 }
 
-/**
- * 以加载好的图片源 + 初始尺寸进行递归压缩（降 quality → 缩尺寸 → 循环）
- */
-function compressImage(
-  source: CanvasImageSource,
-  width: number,
-  height: number,
-  maxSizeBytes: number,
-): string {
-  const canvas = document.createElement('canvas')
-  const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('Failed to get canvas 2d context')
-  return tryCompress(canvas, ctx, source, width, height, maxSizeBytes, 0.9)
-}
-
-/**
- * 将 File 读成 base64 data URL（小文件快速路径）
- */
-function readFileAsDataURL(file: File): Promise<string> {
+function readFileAsDataURL(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
-    reader.onload = (e) => resolve(e.target?.result as string)
+    reader.onload = () => resolve(reader.result as string)
     reader.onerror = () => reject(new Error('Failed to read file'))
     reader.readAsDataURL(file)
   })
 }
 
-//  公开 API
+function loadImageElement(dataUrl: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error('Failed to load image'))
+    image.src = dataUrl
+  })
+}
+
+async function decodeImage(file: File): Promise<DecodedImage> {
+  try {
+    const bitmap = await createImageBitmap(file)
+    return {
+      source: bitmap,
+      width: bitmap.width,
+      height: bitmap.height,
+      release: () => bitmap.close(),
+    }
+  } catch {
+    // createImageBitmap 不支持 SVG 等格式，回退到 <img> 解码
+    const dataUrl = await readFileAsDataURL(file)
+    try {
+      const image = await loadImageElement(dataUrl)
+      return {
+        source: image,
+        width: image.naturalWidth || image.width,
+        height: image.naturalHeight || image.height,
+        dataUrl,
+        release: () => {},
+      }
+    } catch {
+      throw new Error(
+        `unsupported image format (${file.type || 'unknown'}), please convert it to JPEG or PNG first`,
+      )
+    }
+  }
+}
+
 /**
- * 将用户选择的图片文件转为可发送给 LLM 的结构
- * 策略：
- * 1. 小文件（≤512KB）→ FileReader 转 base64，零开销
- * 2. 大文件 → createImageBitmap 直接解码（跳过 base64 中间层），
- *    JPEG 压缩到 512KB 以内；压缩后反而变大则退回原格式
- * @param file 原始图片文件
- * @returns MentionableImage
+ * 等比缩放绘制到 canvas；JPEG 没有 alpha 通道，先铺白底避免透明区域变黑。
+ */
+function renderScaled(
+  source: CanvasImageSource,
+  width: number,
+  height: number,
+): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+  if (!ctx) {
+    throw new Error('Failed to get canvas 2d context')
+  }
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, width, height)
+  ctx.drawImage(source, 0, 0, width, height)
+  return canvas
+}
+
+function encodeJPEG(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          resolve(blob)
+        } else {
+          reject(new Error('Failed to encode image'))
+        }
+      },
+      JPEG_MIME_TYPE,
+      quality,
+    )
+  })
+}
+
+/**
+ * 压到目标体积以内。
+ * 用上一轮的真实字节数估算下一档质量（质量与体积近似线性），
+ * 质量触底后按 √(目标/实际) 等比缩小尺寸重试一次，避免盲目 0.1 递减。
+ */
+async function compressToFit(
+  source: CanvasImageSource,
+  width: number,
+  height: number,
+): Promise<Blob> {
+  let canvas = renderScaled(source, width, height)
+  let quality = INITIAL_QUALITY
+  let rescaled = false
+  let smallest: Blob | null = null
+
+  for (let attempt = 0; attempt < MAX_ENCODE_ATTEMPTS; attempt++) {
+    const blob = await encodeJPEG(canvas, quality)
+    if (!smallest || blob.size < smallest.size) {
+      smallest = blob
+    }
+    if (blob.size <= MAX_IMAGE_BYTES) {
+      return blob
+    }
+    if (attempt === MAX_ENCODE_ATTEMPTS - 1) {
+      break
+    }
+
+    const ratio = Math.sqrt(MAX_IMAGE_BYTES / blob.size)
+    const nextQuality = quality * ratio
+    if (nextQuality >= MIN_QUALITY) {
+      quality = Math.min(nextQuality, 0.9)
+      continue
+    }
+    if (rescaled) {
+      break
+    }
+
+    const scale = ratio * 0.95
+    canvas = renderScaled(
+      source,
+      Math.max(1, Math.round(width * scale)),
+      Math.max(1, Math.round(height * scale)),
+    )
+    quality = INITIAL_QUALITY
+    rescaled = true
+  }
+
+  // 无法压到目标体积时返回最小的一次结果，而不是退回未压缩的原图
+  return smallest as Blob
+}
+
+/**
+ * 将用户选择的图片文件转为可发送给 LLM 的结构。
+ *
+ * - 若文件本身已 ≤ 目标体积且像素在预算内：原样保留（无损、动图不丢帧）
+ * - 否则等比缩放 + JPEG 压缩到目标体积以内
  */
 export async function fileToMentionableImage(
   file: File,
 ): Promise<MentionableImage> {
-  // --- 小文件快速路径：FileReader 直接转 base64，无压缩 ---
-  if (file.size <= MAX_IMAGE_SIZE) {
-    const dataUrl = await readFileAsDataURL(file)
-    const { mimeType } = parseImageDataUrl(dataUrl)
-    return {
-      type: 'image',
-      name: file.name,
-      mimeType,
-      data: dataUrl,
-    }
-  }
-
-  // --- 大文件：createImageBitmap 直接解码，跳过 base64 中间层 ---
-  // 避免 FileReader(base64) → parse → Image.decode 的双重编码开销
-  let bitmap: ImageBitmap | null = null
+  const decoded = await decodeImage(file)
   try {
-    bitmap = await createImageBitmap(file)
+    const target = fitToBudget(decoded.width, decoded.height)
+    const fitsOriginal =
+      file.size <= MAX_IMAGE_BYTES &&
+      target.width === decoded.width &&
+      target.height === decoded.height
 
-    // 阶段 1：预缩放
-    let width = bitmap.width
-    let height = bitmap.height
-
-    if (
-      Math.min(width, height) > SHORT_DIMENSION &&
-      (width > MAX_DIMENSION || height > MAX_DIMENSION)
-    ) {
-      if (width > height) {
-        height = Math.round(height * (MAX_DIMENSION / width))
-        width = MAX_DIMENSION
-      } else {
-        width = Math.round(width * (MAX_DIMENSION / height))
-        height = MAX_DIMENSION
-      }
-    }
-
-    // 阶段 2：递归压缩（ImageBitmap 可直接作为 CanvasImageSource）
-    const compressedDataUrl = compressImage(
-      bitmap,
-      width,
-      height,
-      MAX_IMAGE_SIZE,
-    )
-    const { mimeType: compressedMimeType, base64Data: compressedBase64 } =
-      parseImageDataUrl(compressedDataUrl)
-    const compressedSize = Math.round((compressedBase64.length * 3) / 4)
-
-    // 兜底：压缩后反而更大（如 PNG 文字截图）→ 退回原格式
-    if (compressedSize > file.size) {
-      const originalDataUrl = await readFileAsDataURL(file)
-      const { mimeType: originalMimeType } = parseImageDataUrl(originalDataUrl)
+    if (fitsOriginal) {
+      const data = decoded.dataUrl ?? (await readFileAsDataURL(file))
       return {
         type: 'image',
         name: file.name,
-        mimeType: originalMimeType,
-        data: originalDataUrl,
+        mimeType: parseImageDataUrl(data).mimeType,
+        data,
       }
     }
 
+    const blob = await compressToFit(
+      decoded.source,
+      target.width,
+      target.height,
+    )
     return {
       type: 'image',
       name: file.name,
-      mimeType: compressedMimeType,
-      data: compressedDataUrl,
-    }
-  } catch {
-    // createImageBitmap 可能不支持某些格式（如 SVG），退回 FileReader 方案
-    const dataUrl = await readFileAsDataURL(file)
-    const { mimeType } = parseImageDataUrl(dataUrl)
-
-    if (file.size <= MAX_IMAGE_SIZE) {
-      return { type: 'image', name: file.name, mimeType, data: dataUrl }
-    }
-
-    // 仍需要压缩就走旧路径
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const image = new Image()
-      image.onload = () => resolve(image)
-      image.onerror = () => reject(new Error('Failed to load image'))
-      image.src = dataUrl
-    })
-
-    let width = img.width
-    let height = img.height
-    if (
-      Math.min(width, height) > SHORT_DIMENSION &&
-      (width > MAX_DIMENSION || height > MAX_DIMENSION)
-    ) {
-      if (width > height) {
-        height = Math.round(height * (MAX_DIMENSION / width))
-        width = MAX_DIMENSION
-      } else {
-        width = Math.round(width * (MAX_DIMENSION / height))
-        height = MAX_DIMENSION
-      }
-    }
-
-    const compressedDataUrl = compressImage(img, width, height, MAX_IMAGE_SIZE)
-    const { mimeType: compressedMimeType, base64Data: compressedBase64 } =
-      parseImageDataUrl(compressedDataUrl)
-    const compressedSize = Math.round((compressedBase64.length * 3) / 4)
-
-    if (compressedSize > file.size) {
-      return { type: 'image', name: file.name, mimeType, data: dataUrl }
-    }
-
-    return {
-      type: 'image',
-      name: file.name,
-      mimeType: compressedMimeType,
-      data: compressedDataUrl,
+      mimeType: JPEG_MIME_TYPE,
+      data: await readFileAsDataURL(blob),
     }
   } finally {
-    bitmap?.close()
+    decoded.release()
   }
 }

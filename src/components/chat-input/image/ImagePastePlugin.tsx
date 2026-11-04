@@ -5,6 +5,8 @@ import { useEffect } from 'react'
 import { MentionableImage } from '../../../types/mentionable'
 import { fileToMentionableImage } from '../../../utils/llm/image'
 
+import { reportImageError } from './reportImageError'
+
 export default function ImagePastePlugin({
   onCreateImageMentionables,
 }: {
@@ -23,11 +25,11 @@ export default function ImagePastePlugin({
       )
       if (images.length === 0) return false
 
-      Promise.all(images.map((image) => fileToMentionableImage(image))).then(
-        (mentionableImages) => {
+      Promise.all(images.map((image) => fileToMentionableImage(image)))
+        .then((mentionableImages) => {
           onCreateImageMentionables?.(mentionableImages)
-        },
-      )
+        })
+        .catch(reportImageError)
       return true
     }
 

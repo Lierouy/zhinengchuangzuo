@@ -1,7 +1,7 @@
 import { useSettings } from '../../../contexts/settings-context'
 import { ObsidianDropdown } from '../../common/ObsidianDropdown'
+import { ObsidianNumberInput } from '../../common/ObsidianNumberInput'
 import { ObsidianSetting } from '../../common/ObsidianSetting'
-import { ObsidianTextInput } from '../../common/ObsidianTextInput'
 import { ObsidianToggle } from '../../common/ObsidianToggle'
 
 export function ChatSection() {
@@ -50,36 +50,16 @@ export function ChatSection() {
         name="文件字数上限"
         desc="限制自动提交文件，手动提交文件和文件夹内容的总字数，留空使用默认值 100000。"
       >
-        <ObsidianTextInput
-          type="number"
-          value={
-            settings.chatOptions.chatMaxFileChars == null
-              ? ''
-              : String(settings.chatOptions.chatMaxFileChars)
+        <ObsidianNumberInput
+          value={settings.chatOptions.chatMaxFileChars}
+          integer
+          accept={(n) => n > 0}
+          onChange={(n) =>
+            setSettings({
+              ...settings,
+              chatOptions: { ...settings.chatOptions, chatMaxFileChars: n },
+            })
           }
-          onChange={async (v: string) => {
-            const trimmed = v.trim()
-            if (trimmed === '') {
-              await setSettings({
-                ...settings,
-                chatOptions: {
-                  ...settings.chatOptions,
-                  chatMaxFileChars: undefined,
-                },
-              })
-            } else {
-              const n = Number(trimmed)
-              if (!Number.isNaN(n) && n > 0) {
-                await setSettings({
-                  ...settings,
-                  chatOptions: {
-                    ...settings.chatOptions,
-                    chatMaxFileChars: Math.trunc(n),
-                  },
-                })
-              }
-            }
-          }}
         />
       </ObsidianSetting>
     </div>

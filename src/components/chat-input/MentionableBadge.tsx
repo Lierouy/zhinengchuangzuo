@@ -3,14 +3,7 @@ import { Eye, EyeOff, X } from 'lucide-react'
 import { PropsWithChildren, useCallback } from 'react'
 
 import { useSettings } from '../../contexts/settings-context'
-import {
-  Mentionable,
-  MentionableBlock,
-  MentionableCurrentFile,
-  MentionableFile,
-  MentionableFolder,
-  MentionableImage,
-} from '../../types/mentionable'
+import { Mentionable, MentionableCurrentFile } from '../../types/mentionable'
 import { getMentionableIcon } from '../chat-input/get-metionable-icon'
 
 function BadgeBase({
@@ -44,13 +37,17 @@ function BadgeBase({
   )
 }
 
-function FileBadge({
+function MentionBadge({
   mentionable,
+  name,
+  suffix,
   onDelete,
   onClick,
   isFocused,
 }: {
-  mentionable: MentionableFile
+  mentionable: Mentionable
+  name: string
+  suffix?: string
   onDelete: () => void
   onClick: () => void
   isFocused: boolean
@@ -65,35 +62,13 @@ function FileBadge({
             className="zncz-chat-user-input-file-badge-name-icon"
           />
         )}
-        <span>{mentionable.file.name}</span>
+        <span>{name}</span>
       </div>
-    </BadgeBase>
-  )
-}
-
-function FolderBadge({
-  mentionable,
-  onDelete,
-  onClick,
-  isFocused,
-}: {
-  mentionable: MentionableFolder
-  onDelete: () => void
-  onClick: () => void
-  isFocused: boolean
-}) {
-  const Icon = getMentionableIcon(mentionable)
-  return (
-    <BadgeBase onDelete={onDelete} onClick={onClick} isFocused={isFocused}>
-      <div className="zncz-chat-user-input-file-badge-name">
-        {Icon && (
-          <Icon
-            size={12}
-            className="zncz-chat-user-input-file-badge-name-icon"
-          />
-        )}
-        <span>{mentionable.folder.name}</span>
-      </div>
+      {suffix && (
+        <div className="zncz-chat-user-input-file-badge-name-suffix">
+          {suffix}
+        </div>
+      )}
     </BadgeBase>
   )
 }
@@ -166,63 +141,6 @@ function CurrentFileBadge({
   ) : null
 }
 
-function BlockBadge({
-  mentionable,
-  onDelete,
-  onClick,
-  isFocused,
-}: {
-  mentionable: MentionableBlock
-  onDelete: () => void
-  onClick: () => void
-  isFocused: boolean
-}) {
-  const Icon = getMentionableIcon(mentionable)
-  return (
-    <BadgeBase onDelete={onDelete} onClick={onClick} isFocused={isFocused}>
-      <div className="zncz-chat-user-input-file-badge-name">
-        {Icon && (
-          <Icon
-            size={12}
-            className="zncz-chat-user-input-file-badge-name-icon"
-          />
-        )}
-        <span>{mentionable.file.name}</span>
-      </div>
-      <div className="zncz-chat-user-input-file-badge-name-suffix">
-        {` (${mentionable.startLine}-${mentionable.endLine})`}
-      </div>
-    </BadgeBase>
-  )
-}
-
-function ImageBadge({
-  mentionable,
-  onDelete,
-  onClick,
-  isFocused,
-}: {
-  mentionable: MentionableImage
-  onDelete: () => void
-  onClick: () => void
-  isFocused: boolean
-}) {
-  const Icon = getMentionableIcon(mentionable)
-  return (
-    <BadgeBase onDelete={onDelete} onClick={onClick} isFocused={isFocused}>
-      <div className="zncz-chat-user-input-file-badge-name">
-        {Icon && (
-          <Icon
-            size={12}
-            className="zncz-chat-user-input-file-badge-name-icon"
-          />
-        )}
-        <span>{mentionable.name}</span>
-      </div>
-    </BadgeBase>
-  )
-}
-
 export default function MentionableBadge({
   mentionable,
   onDelete,
@@ -237,8 +155,9 @@ export default function MentionableBadge({
   switch (mentionable.type) {
     case 'file':
       return (
-        <FileBadge
+        <MentionBadge
           mentionable={mentionable}
+          name={mentionable.file.name}
           onDelete={onDelete}
           onClick={onClick}
           isFocused={isFocused}
@@ -246,8 +165,9 @@ export default function MentionableBadge({
       )
     case 'folder':
       return (
-        <FolderBadge
+        <MentionBadge
           mentionable={mentionable}
+          name={mentionable.folder.name}
           onDelete={onDelete}
           onClick={onClick}
           isFocused={isFocused}
@@ -263,8 +183,10 @@ export default function MentionableBadge({
       )
     case 'block':
       return (
-        <BlockBadge
+        <MentionBadge
           mentionable={mentionable}
+          name={mentionable.file.name}
+          suffix={` (${mentionable.startLine}-${mentionable.endLine})`}
           onDelete={onDelete}
           onClick={onClick}
           isFocused={isFocused}
@@ -272,8 +194,9 @@ export default function MentionableBadge({
       )
     case 'image':
       return (
-        <ImageBadge
+        <MentionBadge
           mentionable={mentionable}
+          name={mentionable.name}
           onDelete={onDelete}
           onClick={onClick}
           isFocused={isFocused}

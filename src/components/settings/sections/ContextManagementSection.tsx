@@ -11,8 +11,8 @@ import {
 import ZhinengchuangzuoPlugin from '../../../main'
 import { ObsidianButton } from '../../common/ObsidianButton'
 import { ObsidianDropdown } from '../../common/ObsidianDropdown'
+import { ObsidianNumberInput } from '../../common/ObsidianNumberInput'
 import { ObsidianSetting } from '../../common/ObsidianSetting'
-import { ObsidianTextInput } from '../../common/ObsidianTextInput'
 import { ObsidianToggle } from '../../common/ObsidianToggle'
 import { ConfirmModal } from '../../modals/ConfirmModal'
 import { PromptGroupManageModal } from '../../modals/PromptGroupManageModal'
@@ -204,23 +204,12 @@ export function ContextManagementSection({
         name="激活提示数量"
         desc="限制激活的总提示数量，留空使用默认值 50。"
       >
-        <ObsidianTextInput
-          value={
-            settings.promptActivationLimit == null
-              ? ''
-              : String(settings.promptActivationLimit)
+        <ObsidianNumberInput
+          value={settings.promptActivationLimit}
+          accept={(n) => n > 0}
+          onChange={(n) =>
+            setSettings({ ...settings, promptActivationLimit: n ?? null })
           }
-          onChange={(value: string) => {
-            const trimmed = value.trim()
-            if (trimmed === '') {
-              setSettings({ ...settings, promptActivationLimit: null })
-            } else {
-              const num = Number(trimmed)
-              if (!Number.isNaN(num) && num > 0) {
-                setSettings({ ...settings, promptActivationLimit: num })
-              }
-            }
-          }}
         />
       </ObsidianSetting>
       <div style={{ marginTop: '4px' }} />

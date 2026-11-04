@@ -1,7 +1,16 @@
 import { ToggleComponent } from 'obsidian'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 
-import { useObsidianSetting } from './ObsidianSetting'
+import {
+  ObsidianComponentFactory,
+  useObsidianComponent,
+} from './useObsidianComponent'
+
+const TOGGLE_FACTORY: ObsidianComponentFactory<ToggleComponent> = {
+  addToSetting: (setting, register) => setting.addToggle(register),
+  create: (container) => new ToggleComponent(container),
+  dispose: (toggle) => toggle.toggleEl.remove(),
+}
 
 type ObsidianToggleProps = {
   value: boolean
@@ -9,46 +18,23 @@ type ObsidianToggleProps = {
 }
 
 export function ObsidianToggle({ value, onChange }: ObsidianToggleProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const { setting } = useObsidianSetting()
-  const [toggleComponent, setToggleComponent] =
-    useState<ToggleComponent | null>(null)
+  const { containerRef, component: toggle } =
+    useObsidianComponent(TOGGLE_FACTORY)
   const onChangeRef = useRef(onChange)
-
-  useEffect(() => {
-    if (setting) {
-      let newToggleComponent: ToggleComponent | null = null
-      setting.addToggle((component) => {
-        newToggleComponent = component
-      })
-      setToggleComponent(newToggleComponent)
-
-      return () => {
-        newToggleComponent?.toggleEl.remove()
-      }
-    } else if (containerRef.current) {
-      const newToggleComponent = new ToggleComponent(containerRef.current)
-      setToggleComponent(newToggleComponent)
-
-      return () => {
-        newToggleComponent?.toggleEl.remove()
-      }
-    }
-  }, [setting])
 
   useEffect(() => {
     onChangeRef.current = onChange
   }, [onChange])
 
   useEffect(() => {
-    if (!toggleComponent) return
-    toggleComponent.onChange((v) => onChangeRef.current(v))
-  }, [toggleComponent])
+    if (!toggle) return
+    toggle.onChange((v) => onChangeRef.current(v))
+  }, [toggle])
 
   useEffect(() => {
-    if (!toggleComponent) return
-    toggleComponent.setValue(value)
-  }, [toggleComponent, value])
+    if (!toggle) return
+    toggle.setValue(value)
+  }, [toggle, value])
 
   return <div ref={containerRef} style={{ display: 'contents' }} />
 }

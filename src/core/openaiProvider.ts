@@ -4,6 +4,7 @@ import { ChatModel } from '../types/chat-model.types'
 import { LLMProvider } from '../types/provider.types'
 import {
   LLMOptions,
+  LLMRequest,
   LLMRequestNonStreaming,
   LLMRequestStreaming,
 } from '../types/request'
@@ -41,21 +42,11 @@ export class OpenAIProvider extends BaseLLMProvider<
     request: LLMRequestNonStreaming,
     options?: LLMOptions,
   ): Promise<LLMResponseNonStreaming> {
-    if (model.providerType !== 'openai-compatible') {
-      throw new Error('Model is not an OpenAI Compatible model')
-    }
-
-    if (!this.provider.baseUrl) {
-      throw new LLMBaseUrlNotSetException(
-        `Provider ${this.provider.id} base URL is missing, please set it in settings menu`,
-      )
-    }
-
-    const formattedRequest = {
-      ...request,
-      messages: formatMessages(request.messages),
-    }
-    return this.adapter.generateResponse(this.client, formattedRequest, options)
+    return this.adapter.generateResponse(
+      this.client,
+      this.prepareRequest(model, request),
+      options,
+    )
   }
 
   async streamResponse(
@@ -63,20 +54,25 @@ export class OpenAIProvider extends BaseLLMProvider<
     request: LLMRequestStreaming,
     options?: LLMOptions,
   ): Promise<AsyncIterable<LLMResponseStreaming>> {
+    return this.adapter.streamResponse(
+      this.client,
+      this.prepareRequest(model, request),
+      options,
+    )
+  }
+
+  private prepareRequest<T extends LLMRequest>(
+    model: ChatModel,
+    request: T,
+  ): T {
     if (model.providerType !== 'openai-compatible') {
       throw new Error('Model is not an OpenAI Compatible model')
     }
-
     if (!this.provider.baseUrl) {
       throw new LLMBaseUrlNotSetException(
         `Provider ${this.provider.id} base URL is missing, please set it in settings menu`,
       )
     }
-
-    const formattedRequest = {
-      ...request,
-      messages: formatMessages(request.messages),
-    }
-    return this.adapter.streamResponse(this.client, formattedRequest, options)
+    return { ...request, messages: formatMessages(request.messages) }
   }
 }
