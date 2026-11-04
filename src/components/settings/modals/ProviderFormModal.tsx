@@ -143,52 +143,50 @@ function ProviderFormComponent({
         </>
       )}
 
-      {!String(formData.type).endsWith('-plan') && (
-        <>
-          <ObsidianSetting name="供应商类型" required>
-            <div style={{ marginTop: '8px' }}></div>
-            <ObsidianDropdown
-              value={formData.type}
-              options={Object.fromEntries(
-                Object.entries(PROVIDER_TYPES_INFO).map(([key, info]) => [
-                  key,
-                  info.label,
-                ]),
-              )}
-              onChange={(value: LLMProviderType) =>
-                setFormData(
-                  (prev) =>
-                    ({
-                      ...prev,
-                      type: value,
-                      additionalSettings: {},
-                    }) as LLMProvider,
-                )
-              }
-            />
-          </ObsidianSetting>
+      <>
+        <ObsidianSetting name="供应商类型" required>
+          <div style={{ marginTop: '8px' }}></div>
+          <ObsidianDropdown
+            value={formData.type}
+            options={Object.fromEntries(
+              Object.entries(PROVIDER_TYPES_INFO).map(([key, info]) => [
+                key,
+                info.label,
+              ]),
+            )}
+            onChange={(value: LLMProviderType) =>
+              setFormData(
+                (prev) =>
+                  ({
+                    ...prev,
+                    type: value,
+                    additionalSettings: {},
+                  }) as LLMProvider,
+              )
+            }
+          />
+        </ObsidianSetting>
 
-          <ObsidianSetting name="URL 地址" required>
-            <div style={{ marginTop: '8px' }}></div>
-            <ObsidianTextInput
-              value={formData.baseUrl ?? ''}
-              onChange={(value: string) =>
-                setFormData((prev) => ({ ...prev, baseUrl: value }))
-              }
-            />
-          </ObsidianSetting>
+        <ObsidianSetting name="URL 地址" required>
+          <div style={{ marginTop: '8px' }}></div>
+          <ObsidianTextInput
+            value={formData.baseUrl ?? ''}
+            onChange={(value: string) =>
+              setFormData((prev) => ({ ...prev, baseUrl: value }))
+            }
+          />
+        </ObsidianSetting>
 
-          <ObsidianSetting name="API 密钥" required>
-            <div style={{ marginTop: '8px' }}></div>
-            <ObsidianTextInput
-              value={formData.apiKey ?? ''}
-              onChange={(value: string) =>
-                setFormData((prev) => ({ ...prev, apiKey: value }))
-              }
-            />
-          </ObsidianSetting>
-        </>
-      )}
+        <ObsidianSetting name="API 密钥" required>
+          <div style={{ marginTop: '8px' }}></div>
+          <ObsidianTextInput
+            value={formData.apiKey ?? ''}
+            onChange={(value: string) =>
+              setFormData((prev) => ({ ...prev, apiKey: value }))
+            }
+          />
+        </ObsidianSetting>
+      </>
 
       <ObsidianSetting
         name="模型思考字段"

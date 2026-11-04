@@ -9,7 +9,6 @@ import {
 } from 'obsidian'
 
 import { ChatView } from './ChatView'
-import { ChatProps } from './components/chat-view/Chat'
 import { CHAT_VIEW_TYPE } from './constants'
 import { ROOT_DIR } from './database/constants'
 import {
@@ -18,11 +17,11 @@ import {
 } from './settings/schema/setting.types'
 import { parseZhinengchuangzuoSettings } from './settings/schema/settings'
 import { ZhinengchuangzuoSettingTab } from './settings/SettingTab'
-import { getMentionableBlockData, readTFileContent } from './utils/obsidian'
+import { MentionableBlockData } from './types/mentionable'
+import { ensureFolderExists, getMentionableBlockData } from './utils/obsidian'
 
 export default class ZhinengchuangzuoPlugin extends Plugin {
   settings!: ZhinengchuangzuoSettings
-  initialChatProps?: ChatProps // TODO: change this to use view state like ApplyView
   settingsChangeListeners: ((newSettings: ZhinengchuangzuoSettings) => void)[] =
     []
   private handleInProgress = false
@@ -73,7 +72,7 @@ export default class ZhinengchuangzuoPlugin extends Plugin {
             new Notice('No open files are available for handle')
             return
           }
-          const fileContent = await readTFileContent(file, this.app.vault)
+          const fileContent = await this.app.vault.cachedRead(file)
 
           // Collect linked files referenced from this file (one-level only)
           const MAX_LINKS = this.settings.handleMaxLinks ?? 20
@@ -159,7 +158,7 @@ export default class ZhinengchuangzuoPlugin extends Plugin {
           let runningTotal = fileContent.length
 
           for (const f of resolvedFiles) {
-            const content = await readTFileContent(f, this.app.vault)
+            const content = await this.app.vault.cachedRead(f)
             if (runningTotal + content.length > MAX_CHARS) {
               droppedFiles.push(f)
             } else {
@@ -191,10 +190,10 @@ export default class ZhinengchuangzuoPlugin extends Plugin {
             return
           }
 
-          const provider = this.settings.providers.find(
+          const providerExists = this.settings.providers.some(
             (p) => p.id === chatModel.providerId,
           )
-          if (!provider) {
+          if (!providerExists) {
             new Notice('The provider for this model is not configured')
             return
           }
@@ -229,8 +228,6 @@ export default class ZhinengchuangzuoPlugin extends Plugin {
     this.addSettingTab(new ZhinengchuangzuoSettingTab(this.app, this))
   }
 
-  onunload() {}
-
   // Save settings in user_data folder instead of plugin root
   async loadData(): Promise<Record<string, unknown>> {
     const filePath = this.settingsFilePath
@@ -249,15 +246,7 @@ export default class ZhinengchuangzuoPlugin extends Plugin {
   async saveData(data: Record<string, unknown>): Promise<void> {
     const filePath = this.settingsFilePath
 
-    // Ensure directory exists
-    const parts = filePath.split('/').filter(Boolean)
-    let currentPath = ''
-    for (const part of parts.slice(0, -1)) {
-      currentPath = currentPath ? `${currentPath}/${part}` : part
-      if (!(await this.app.vault.adapter.exists(currentPath))) {
-        await this.app.vault.adapter.mkdir(currentPath)
-      }
-    }
+    await ensureFolderExists(this.app, filePath.split('/').slice(0, -1))
 
     const content = JSON.stringify(data, null, 2)
     await this.app.vault.adapter.write(filePath, content)
@@ -298,22 +287,22 @@ ${validationResult.error.issues.map((v) => v.message).join('\n')}`)
     const view = this.app.workspace.getActiveViewOfType(MarkdownView)
     const editor = view?.editor
     if (!view || !editor) {
-      this.activateChatView(undefined, openNewChat)
+      await this.activateChatView(undefined, openNewChat)
       return
     }
     const selectedBlockData = await getMentionableBlockData(editor, view)
-    this.activateChatView(
-      {
-        selectedBlock: selectedBlockData ?? undefined,
-      },
-      openNewChat,
-    )
+    await this.activateChatView(selectedBlockData ?? undefined, openNewChat)
   }
 
-  async activateChatView(chatProps?: ChatProps, openNewChat = false) {
-    // chatProps is consumed in ChatView.tsx
-    this.initialChatProps = chatProps
-
+  /**
+   * Opens (or focuses) the chat view and optionally starts a new conversation.
+   * The selected block is passed imperatively through `ChatRef` so it can never
+   * leak into a later open when the view already exists.
+   */
+  async activateChatView(
+    selectedBlock?: MentionableBlockData,
+    openNewChat = false,
+  ) {
     let leaf = this.app.workspace.getLeavesOfType(CHAT_VIEW_TYPE)[0]
 
     await (leaf ?? this.app.workspace.getRightLeaf(false))?.setViewState({
@@ -324,11 +313,17 @@ ${validationResult.error.issues.map((v) => v.message).join('\n')}`)
     // Re-acquire after setViewState (React may have remounted the component)
     leaf = this.app.workspace.getLeavesOfType(CHAT_VIEW_TYPE)[0]
 
-    if (openNewChat && leaf && leaf.view instanceof ChatView) {
-      leaf.view.openNewChat(chatProps?.selectedBlock)
+    if (leaf && leaf.view instanceof ChatView) {
+      if (openNewChat) {
+        leaf.view.openNewChat(selectedBlock)
+      } else if (selectedBlock) {
+        leaf.view.addSelectionToChat(selectedBlock)
+      }
+      await this.app.workspace.revealLeaf(leaf)
+      return
     }
 
-    this.app.workspace.revealLeaf(
+    await this.app.workspace.revealLeaf(
       this.app.workspace.getLeavesOfType(CHAT_VIEW_TYPE)[0],
     )
   }
@@ -339,9 +334,7 @@ ${validationResult.error.issues.map((v) => v.message).join('\n')}`)
 
     const leaves = this.app.workspace.getLeavesOfType(CHAT_VIEW_TYPE)
     if (leaves.length === 0 || !(leaves[0].view instanceof ChatView)) {
-      await this.activateChatView({
-        selectedBlock: data,
-      })
+      await this.activateChatView(data)
       return
     }
 

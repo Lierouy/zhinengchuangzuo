@@ -3,7 +3,16 @@
  * Modified from the original code
  */
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
-import { $createTextNode, COMMAND_PRIORITY_NORMAL, TextNode } from 'lexical'
+import {
+  $createParagraphNode,
+  $createTextNode,
+  $getRoot,
+  $getSelection,
+  $isRangeSelection,
+  COMMAND_PRIORITY_NORMAL,
+  ParagraphNode,
+  TextNode,
+} from 'lexical'
 import { JSX, useCallback, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 
@@ -15,25 +24,14 @@ import {
 import { SearchableMentionable } from '../../../utils/fuzzy-search'
 import { getMentionableIcon } from '../../chat-input/get-metionable-icon'
 import { MenuOption, MenuTextMatch } from '../LexicalMenu'
-import {
-  LexicalTypeaheadMenuPlugin,
-  useBasicTypeaheadTriggerMatch,
-} from '../LexicalTypeaheadMenuPlugin'
+import { LexicalTypeaheadMenuPlugin } from '../LexicalTypeaheadMenuPlugin'
+import { MENTION_TRIGGER, isOtherTriggerActive } from '../typeahead-triggers'
 
 import { $createMentionNode } from './MentionNode'
 
-const PUNCTUATION =
-  '\\.,\\+\\*\\?\\$\\@\\|#{}\\(\\)\\^\\-\\[\\]\\\\/!%\'"~=<>_:;'
-const NAME = '\\b[A-Z][^\\s' + PUNCTUATION + ']'
+const PUNC = '\\.,\\+\\*\\?\\$\\@\\|#{}\\(\\)\\^\\-\\[\\]\\\\/!%\'"~=<>_:;'
 
-const DocumentMentionsRegex = {
-  NAME,
-  PUNCTUATION,
-}
-
-const PUNC = DocumentMentionsRegex.PUNCTUATION
-
-const TRIGGERS = ['@'].join('')
+const TRIGGERS = MENTION_TRIGGER
 
 // Chars we expect to see in a mention (non-space, non-punctuation).
 const VALID_CHARS = '[^' + TRIGGERS + PUNC + '\\s]'
@@ -99,9 +97,10 @@ function getPossibleQueryMatch(text: string): MenuTextMatch | null {
 class MentionTypeaheadOption extends MenuOption {
   name: string
   mentionable: Mentionable
-  icon: React.ReactNode
 
   constructor(result: SearchableMentionable) {
+    // `SearchableMentionable` is a closed union; the exhaustive switch keeps
+    // `name`/`mentionable` definitely assigned when a new variant is added.
     switch (result.type) {
       case 'file':
         super(result.file.path)
@@ -113,6 +112,12 @@ class MentionTypeaheadOption extends MenuOption {
         this.name = result.folder.name
         this.mentionable = result
         break
+      default: {
+        const exhaustiveCheck: never = result
+        throw new Error(
+          `Unsupported mentionable type: ${JSON.stringify(exhaustiveCheck)}`,
+        )
+      }
     }
   }
 }
@@ -175,10 +180,6 @@ export default function NewMentionsPlugin({
     return searchResultByQuery(queryString)
   }, [queryString, searchResultByQuery])
 
-  const checkForSlashTriggerMatch = useBasicTypeaheadTriggerMatch('/', {
-    minLength: 0,
-  })
-
   const options = useMemo(
     () =>
       results
@@ -198,8 +199,29 @@ export default function NewMentionsPlugin({
           getMentionableName(selectedOption.mentionable),
           serializeMentionable(selectedOption.mentionable),
         )
+
         if (nodeToReplace) {
           nodeToReplace.replace(mentionNode)
+        } else {
+          // No query text node to replace (e.g. the trigger was consumed or the
+          // selection moved). Insert at the current selection so the mention is
+          // never silently dropped.
+          const selection = $getSelection()
+          if ($isRangeSelection(selection)) {
+            selection.insertNodes([mentionNode])
+          } else {
+            // Root only accepts element nodes, so append to the last paragraph
+            // (creating one when the document is empty).
+            const root = $getRoot()
+            const lastChild = root.getLastChild()
+            if (lastChild instanceof ParagraphNode) {
+              lastChild.append(mentionNode)
+            } else {
+              const paragraph = $createParagraphNode()
+              paragraph.append(mentionNode)
+              root.append(paragraph)
+            }
+          }
         }
 
         const spaceNode = $createTextNode(' ')
@@ -218,14 +240,14 @@ export default function NewMentionsPlugin({
         // 文件/文件夹引用数量已达上限，不再弹出 @ 菜单
         return null
       }
-      const slashMatch = checkForSlashTriggerMatch(text, editor)
-
-      if (slashMatch !== null) {
+      // Explicitly yield to the template trigger instead of relying on
+      // registration order.
+      if (isOtherTriggerActive(text, MENTION_TRIGGER)) {
         return null
       }
       return getPossibleQueryMatch(text)
     },
-    [checkForSlashTriggerMatch, editor, mentionLimitReached],
+    [mentionLimitReached],
   )
 
   return (

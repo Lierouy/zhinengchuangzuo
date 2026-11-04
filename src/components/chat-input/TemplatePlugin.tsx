@@ -4,9 +4,10 @@ import {
   $createParagraphNode,
   $createTextNode,
   COMMAND_PRIORITY_NORMAL,
+  LexicalEditor,
   TextNode,
 } from 'lexical'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import { Template } from '../../database/template/types'
@@ -17,6 +18,7 @@ import {
   LexicalTypeaheadMenuPlugin,
   useBasicTypeaheadTriggerMatch,
 } from './LexicalTypeaheadMenuPlugin'
+import { TEMPLATE_TRIGGER, isOtherTriggerActive } from './typeahead-triggers'
 
 class TemplateTypeaheadOption extends MenuOption {
   name: string
@@ -65,19 +67,24 @@ export default function TemplatePlugin() {
   const [editor] = useLexicalComposerContext()
   const templateManager = useTemplateManager()
 
-  const [_queryString, setQueryString] = useState<string | null>(null)
   const [searchResults, setSearchResults] = useState<Template[]>([])
+  // Monotonic request id: a slow earlier search must never overwrite the
+  // results of a newer query.
+  const searchRequestIdRef = useRef(0)
 
   // Always do a fresh search immediately when query changes
   // This guarantees we always get the latest templates
   const handleQueryChange = useCallback(
     async (newQuery: string | null) => {
-      setQueryString(newQuery)
+      const requestId = ++searchRequestIdRef.current
+
       if (newQuery == null) {
         setSearchResults([])
         return
       }
+
       const results = await templateManager.searchTemplates(newQuery)
+      if (requestId !== searchRequestIdRef.current) return
       setSearchResults(results)
     },
     [templateManager],
@@ -91,9 +98,20 @@ export default function TemplatePlugin() {
     [searchResults],
   )
 
-  const checkForTriggerMatch = useBasicTypeaheadTriggerMatch('/', {
-    minLength: 0,
-  })
+  const checkForSlashTriggerMatch = useBasicTypeaheadTriggerMatch(
+    TEMPLATE_TRIGGER,
+    { minLength: 0 },
+  )
+
+  const checkForTriggerMatch = useCallback(
+    (text: string, currentEditor: LexicalEditor) => {
+      // Explicitly yield to the mention trigger instead of relying on
+      // registration order.
+      if (isOtherTriggerActive(text, TEMPLATE_TRIGGER)) return null
+      return checkForSlashTriggerMatch(text, currentEditor)
+    },
+    [checkForSlashTriggerMatch],
+  )
 
   const onSelectOption = useCallback(
     (

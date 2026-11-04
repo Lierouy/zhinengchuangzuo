@@ -24,7 +24,8 @@ export type ChatAssistantMessage = {
 
 export type ChatMessage = ChatUserMessage | ChatAssistantMessage
 
-export type AssistantToolMessageGroup = ChatAssistantMessage[]
+/** Consecutive assistant messages rendered together as one visual group. */
+export type ChatAssistantMessageGroup = ChatAssistantMessage[]
 
 export type SerializedChatUserMessage = {
   role: 'user'
@@ -45,19 +46,3 @@ export type SerializedChatAssistantMessage = {
 }
 export type SerializedChatMessage =
   SerializedChatUserMessage | SerializedChatAssistantMessage
-
-export type ChatConversation = {
-  schemaVersion: number
-  id: string
-  title: string
-  createdAt: number
-  updatedAt: number
-  messages: SerializedChatMessage[]
-}
-export type ChatConversationMeta = {
-  schemaVersion: number
-  id: string
-  title: string
-  createdAt: number
-  updatedAt: number
-}

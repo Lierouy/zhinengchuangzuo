@@ -128,10 +128,6 @@
   display: block;
   margin-top: 7px;
 
-  .zncz-item-control {
-    width: 100%;
-  }
-
   textarea {
     width: 100%;
     min-height: 160px;
@@ -297,11 +293,7 @@
   flex-grow: 0;
 }
 
-.zncz-chat-user-input-file-badge-current {
-  color: var(--color-base-50);
-}
-
-.zncz-lexical-content-editable-root .mention {
+.zncz-lexical-content-editable-root .zncz-mention {
   border-bottom: 1px solid var(--text-accent);
   color: var(--tag-color);
   word-break: break-all;
@@ -509,19 +501,6 @@ button.zncz-chat-input-model-select {
   justify-content: space-between;
   gap: var(--size-4-1);
   width: 100%;
-
-  .zncz-template-menu-item-delete {
-    display: flex;
-    align-items: center;
-    padding: var(--size-4-1);
-    margin: calc(var(--size-4-1) * -1);
-    opacity: 0.7;
-    transition: opacity 0.2s;
-
-    &:hover {
-      opacity: 1;
-    }
-  }
 }
 
 .zncz-assistant-message-actions {
@@ -556,10 +535,6 @@ button.zncz-chat-input-model-select {
 .zncz-assistant-message-actions button:hover {
   background-color: transparent;
   opacity: 0.7;
-}
-
-.zncz-assistant-message-actions-icon--copied {
-  color: var(--text-faint);
 }
 
 .zncz-assistant-reasoning-container {
@@ -783,10 +758,6 @@ button.zncz-chat-input-model-select {
   cursor: text;
   font-size: var(--font-ui-small);
   font-family: inherit;
-}
-
-.zncz-error-modal-buttons {
-  margin-top: 1rem;
 }
 
 .zncz-markdown-rendered {

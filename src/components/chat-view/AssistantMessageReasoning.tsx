@@ -5,12 +5,10 @@ import { ObsidianMarkdown } from './ObsidianMarkdown'
 
 type AssistantMessageReasoningProps = {
   reasoning: string
-  _hasContentStarted?: boolean
 }
 
 export default function AssistantMessageReasoning({
   reasoning,
-  _hasContentStarted,
 }: AssistantMessageReasoningProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 

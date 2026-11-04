@@ -280,6 +280,7 @@ export class AnthropicProvider extends BaseLLMProvider<
       }
 
       if (chunk.type === 'message_delta') {
+        const outputTokens = chunk.usage?.output_tokens ?? 0
         yield {
           id: messageId,
           choices: [
@@ -293,8 +294,8 @@ export class AnthropicProvider extends BaseLLMProvider<
           object: 'chat.completion.chunk',
           usage: {
             prompt_tokens: inputTokens,
-            completion_tokens: chunk.usage.output_tokens,
-            total_tokens: inputTokens + chunk.usage.output_tokens,
+            completion_tokens: outputTokens,
+            total_tokens: inputTokens + outputTokens,
           },
         }
       }

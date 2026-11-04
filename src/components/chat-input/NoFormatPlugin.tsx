@@ -6,7 +6,7 @@ export default function NoFormatPlugin() {
   const [editor] = useLexicalComposerContext()
 
   useEffect(() => {
-    editor.registerNodeTransform(TextNode, (node) => {
+    return editor.registerNodeTransform(TextNode, (node) => {
       if (node.getFormat() !== 0) {
         node.setFormat(0)
       }

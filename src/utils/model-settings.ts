@@ -60,7 +60,7 @@ export function sanitizeModelSettings(
     ModelSettings
 }
 
-export function parseCustomParameters(
+function parseCustomParameters(
   customParameters: string[],
   target: Record<string, unknown>,
 ): void {

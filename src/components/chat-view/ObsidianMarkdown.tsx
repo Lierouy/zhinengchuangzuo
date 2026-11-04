@@ -1,5 +1,5 @@
 import { App, Keymap, MarkdownRenderer } from 'obsidian'
-import { memo, useCallback, useEffect, useRef } from 'react'
+import { memo, useEffect, useRef } from 'react'
 
 import { useApp } from '../../contexts/app-context'
 import { useChatView } from '../../contexts/chat-view-context'
@@ -22,29 +22,39 @@ const ObsidianMarkdown = memo(function ObsidianMarkdown({
   const app = useApp()
   const chatView = useChatView()
   const containerRef = useRef<HTMLDivElement>(null)
+  // The delegated click handler is attached once per container, so it must read
+  // the current source path through a ref instead of capturing it.
+  const sourcePathRef = useRef('')
 
-  const renderMarkdown = useCallback(async () => {
-    if (containerRef.current) {
-      containerRef.current.innerHTML = ''
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    // Streaming updates re-render on every token; a slower earlier render must
+    // never overwrite a newer one.
+    let cancelled = false
+    const sourcePath = app.workspace.getActiveFile()?.path ?? ''
+    sourcePathRef.current = sourcePath
+
+    const renderMarkdown = async () => {
+      container.innerHTML = ''
       await MarkdownRenderer.render(
         app,
         content,
-        containerRef.current,
-        app.workspace.getActiveFile()?.path ?? '',
+        container,
+        sourcePath,
         chatView,
       )
+      if (cancelled) return
+      setupMarkdownLinks(app, container, sourcePathRef)
+    }
 
-      setupMarkdownLinks(
-        app,
-        containerRef.current,
-        app.workspace.getActiveFile()?.path ?? '',
-      )
+    void renderMarkdown()
+
+    return () => {
+      cancelled = true
     }
   }, [app, content, chatView])
-
-  useEffect(() => {
-    renderMarkdown()
-  }, [renderMarkdown])
 
   return (
     <div
@@ -55,40 +65,37 @@ const ObsidianMarkdown = memo(function ObsidianMarkdown({
 })
 
 /**
- * Adds click and hover handlers to internal links rendered by MarkdownRenderer.render().
+ * Containers that already have delegated link handlers attached. Using event
+ * delegation keeps a single listener per container, so re-rendering markdown
+ * (e.g. on every streaming token) can never accumulate listeners.
+ */
+const delegatedContainers = new WeakSet<HTMLElement>()
+
+/**
+ * Makes internal links rendered by MarkdownRenderer.render() interactive.
  * Required because rendered links are not interactive by default.
  */
 function setupMarkdownLinks(
   app: App,
   containerEl: HTMLElement,
-  sourcePath: string,
-  showLinkHover?: boolean,
+  sourcePathRef: { current: string },
 ) {
-  containerEl.querySelectorAll('a.internal-link').forEach((el) => {
-    const linkEl = el as HTMLElement
-    linkEl.addEventListener('click', (evt: MouseEvent) => {
-      evt.preventDefault()
-      const linktext = el.getAttribute('href')
-      if (linktext) {
-        app.workspace.openLinkText(linktext, sourcePath, Keymap.isModEvent(evt))
-      }
-    })
+  if (delegatedContainers.has(containerEl)) return
+  delegatedContainers.add(containerEl)
 
-    if (showLinkHover) {
-      linkEl.addEventListener('mouseover', (event: MouseEvent) => {
-        event.preventDefault()
-        const linktext = el.getAttribute('href')
-        if (linktext) {
-          app.workspace.trigger('hover-link', {
-            event,
-            source: 'preview',
-            hoverParent: { hoverPopover: null },
-            targetEl: event.currentTarget,
-            linktext: linktext,
-            sourcePath: sourcePath,
-          })
-        }
-      })
+  containerEl.addEventListener('click', (evt: MouseEvent) => {
+    const linkEl = (evt.target as HTMLElement | null)?.closest(
+      'a.internal-link',
+    )
+    if (!linkEl) return
+    evt.preventDefault()
+    const linktext = linkEl.getAttribute('href')
+    if (linktext) {
+      app.workspace.openLinkText(
+        linktext,
+        sourcePathRef.current,
+        Keymap.isModEvent(evt),
+      )
     }
   })
 }

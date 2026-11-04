@@ -5,7 +5,9 @@ export const baseLlmProviderSchema = z.object({
   baseUrl: z.string().optional(),
   apiKey: z.string().optional(),
   customReasoningField: z.string().optional(),
-  additionalSettings: z.record(z.string(), z.string()).optional(),
+  // Each provider type narrows this to its own shape, so the base must stay
+  // permissive instead of forcing string values.
+  additionalSettings: z.record(z.string(), z.unknown()).optional(),
 })
 
 /*

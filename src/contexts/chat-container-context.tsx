@@ -10,7 +10,7 @@ export const ChatContainerContext =
 /**
  * Get the ref to the `.zncz-chat-container` element.
  */
-export function useChatContainerRef(): React.RefObject<HTMLDivElement | null> | null {
+function useChatContainerRef(): React.RefObject<HTMLDivElement | null> | null {
   return useContext(ChatContainerContext)
 }
 
@@ -22,13 +22,4 @@ export function useChatContainerRef(): React.RefObject<HTMLDivElement | null> | 
 export function useOwnerDocument(): Document {
   const containerRef = useChatContainerRef()
   return containerRef?.current?.ownerDocument ?? document
-}
-
-/**
- * Get the `ownerWindow` (defaultView) of the `.zncz-chat-container` element.
- * Falls back to global `window` when the container is not yet mounted.
- */
-export function useOwnerWindow(): Window {
-  const doc = useOwnerDocument()
-  return doc.defaultView ?? window
 }

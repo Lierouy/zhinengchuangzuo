@@ -1,6 +1,5 @@
 import { z } from 'zod'
 
-import { DEFAULT_CHAT_MODELS, DEFAULT_PROVIDERS } from '../../constants'
 import { chatModelSchema } from '../../types/chat-model.types'
 import { llmProviderSchema } from '../../types/provider.types'
 
@@ -13,9 +12,9 @@ export const zhinengchuangzuoSettingsSchema = z.object({
   // Version
   version: z.literal(SETTINGS_SCHEMA_VERSION).catch(SETTINGS_SCHEMA_VERSION),
 
-  providers: z.array(llmProviderSchema).catch([...DEFAULT_PROVIDERS]),
+  providers: z.array(llmProviderSchema).catch([]),
 
-  chatModels: z.array(chatModelSchema).catch([...DEFAULT_CHAT_MODELS]),
+  chatModels: z.array(chatModelSchema).catch([]),
 
   chatModelId: z.string().catch(''), // User must configure their own model
 
@@ -30,11 +29,12 @@ export const zhinengchuangzuoSettingsSchema = z.object({
   // Handle feature limits
   handleMaxLinks: z.number().optional(),
   handleMaxChars: z.number().optional(),
-  // Chat options
+  // Chat options — each field falls back independently so one invalid value
+  // cannot discard the user's other preferences.
   chatOptions: z
     .object({
-      includeCurrentFileContent: z.boolean(),
-      chatMaxFileChars: z.number().optional(),
+      includeCurrentFileContent: z.boolean().catch(true),
+      chatMaxFileChars: z.number().optional().catch(undefined),
     })
     .catch({
       includeCurrentFileContent: true,

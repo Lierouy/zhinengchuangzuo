@@ -38,7 +38,10 @@ export class ChatManager extends AbstractJsonRepository<
   public async createChat(
     initialData: Partial<ChatConversation>,
   ): Promise<ChatConversation> {
-    if (initialData.title && initialData.title.length === 0) {
+    if (
+      initialData.title !== undefined &&
+      initialData.title.trim().length === 0
+    ) {
       throw new EmptyChatTitleException()
     }
 
@@ -111,6 +114,7 @@ export class ChatManager extends AbstractJsonRepository<
         id: conversation.id,
         schemaVersion: conversation.schemaVersion,
         title: conversation.title,
+        createdAt: conversation.createdAt,
         updatedAt: conversation.updatedAt,
       }
     })

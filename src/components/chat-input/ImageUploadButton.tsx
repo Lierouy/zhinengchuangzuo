@@ -1,5 +1,4 @@
 import { ImagePlus } from 'lucide-react'
-import { useRef } from 'react'
 
 export function ImageUploadButton({
   onUpload,
@@ -10,8 +9,6 @@ export function ImageUploadButton({
   isAtLimit: boolean
   onAtLimit?: () => void
 }) {
-  const inputRef = useRef<HTMLInputElement>(null)
-
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? [])
     if (files.length > 0) {
@@ -32,7 +29,6 @@ export function ImageUploadButton({
       }}
     >
       <input
-        ref={inputRef}
         type="file"
         accept="image/*"
         multiple

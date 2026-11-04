@@ -2,11 +2,20 @@ import { App, Editor, MarkdownView, TFile, TFolder, Vault } from 'obsidian'
 
 import { MentionableBlockData } from '../types/mentionable'
 
-export async function readTFileContent(
-  file: TFile,
-  vault: Vault,
-): Promise<string> {
-  return await vault.cachedRead(file)
+/**
+ * Recursively creates the given folder path segments (relative to the vault root).
+ */
+export async function ensureFolderExists(
+  app: App,
+  segments: string[],
+): Promise<void> {
+  let currentPath = ''
+  for (const segment of segments.filter(Boolean)) {
+    currentPath = currentPath ? `${currentPath}/${segment}` : segment
+    if (!(await app.vault.adapter.exists(currentPath))) {
+      await app.vault.adapter.mkdir(currentPath)
+    }
+  }
 }
 
 export async function readMultipleTFiles(
@@ -14,17 +23,16 @@ export async function readMultipleTFiles(
   vault: Vault,
 ): Promise<string[]> {
   // Read files in parallel
-  const readPromises = files.map((file) => readTFileContent(file, vault))
-  return await Promise.all(readPromises)
+  return await Promise.all(files.map((file) => vault.cachedRead(file)))
 }
 
-export function getNestedFiles(folder: TFolder, vault: Vault): TFile[] {
+export function getNestedFiles(folder: TFolder): TFile[] {
   const files: TFile[] = []
   for (const child of folder.children) {
     if (child instanceof TFile) {
       files.push(child)
     } else if (child instanceof TFolder) {
-      files.push(...getNestedFiles(child, vault))
+      files.push(...getNestedFiles(child))
     }
   }
   return files
@@ -70,27 +78,29 @@ export function calculateFileDistance(
   file1: TFile | TFolder,
   file2: TFile | TFolder,
 ): number | null {
-  const path1 = file1.path.split('/')
-  const path2 = file2.path.split('/')
+  // Compare directory segments only: the last segment is the file/folder name
+  // itself, and for root-level items it is not a folder at all.
+  const dir1 = file1.path.split('/').slice(0, -1)
+  const dir2 = file2.path.split('/').slice(0, -1)
+
+  // Root-level items have no directory; treat them as distance 0 from each other.
+  if (dir1.length === 0 || dir2.length === 0) {
+    return dir1.length === dir2.length ? 0 : null
+  }
 
   // Check if files are in different top-level folders
-  if (path1[0] !== path2[0]) {
+  if (dir1[0] !== dir2[0]) {
     return null
   }
 
-  let distance = 0
   let i = 0
-
   // Find the common ancestor
-  while (i < path1.length && i < path2.length && path1[i] === path2[i]) {
+  while (i < dir1.length && i < dir2.length && dir1[i] === dir2[i]) {
     i++
   }
 
   // Calculate distance from common ancestor to each file
-  distance += path1.length - i
-  distance += path2.length - i
-
-  return distance
+  return dir1.length - i + (dir2.length - i)
 }
 
 export function openMarkdownFile(

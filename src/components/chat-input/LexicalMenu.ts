@@ -74,7 +74,11 @@ export type MenuRenderFn<TOption extends MenuOption> = (
 const scrollIntoViewIfNeeded = (target: HTMLElement) => {
   const ownerDocument = target.ownerDocument
   const ownerWindow = ownerDocument.defaultView ?? window
-  const typeaheadContainerNode = ownerDocument.getElementById('typeahead-menu')
+  // Resolve the container from the target itself instead of a global id, so
+  // multiple editors (or pop-out windows) cannot collide.
+  const typeaheadContainerNode = target.closest<HTMLElement>(
+    '.zncz-typeahead-menu',
+  )
   if (!typeaheadContainerNode) {
     return
   }
@@ -107,7 +111,7 @@ function getFullMatchOffset(
 ): number {
   let triggerOffset = offset
   for (let i = triggerOffset; i <= entryText.length; i++) {
-    if (documentText.substr(-i) === entryText.substr(0, i)) {
+    if (documentText.slice(-i) === entryText.slice(0, i)) {
       triggerOffset = i
     }
   }
@@ -153,7 +157,7 @@ function $splitNodeContainingQuery(match: MenuTextMatch): TextNode | null {
   return newNode
 }
 
-export function getScrollParent(
+function getScrollParent(
   element: HTMLElement,
   includeHidden: boolean,
 ): HTMLElement | HTMLBodyElement {
@@ -190,7 +194,7 @@ function isTriggerVisibleInNearestScrollContainer(
 }
 
 // Reposition the menu on scroll, window resize, and element resize.
-export function useDynamicPositioning(
+function useDynamicPositioning(
   resolution: MenuResolution | null,
   targetElement: HTMLElement | null,
   onReposition: () => void,
@@ -247,7 +251,7 @@ export function useDynamicPositioning(
   }, [targetElement, editor, onVisibilityChange, onReposition, resolution])
 }
 
-export const SCROLL_TYPEAHEAD_OPTION_INTO_VIEW_COMMAND: LexicalCommand<{
+const SCROLL_TYPEAHEAD_OPTION_INTO_VIEW_COMMAND: LexicalCommand<{
   index: number
   option: MenuOption
 }> = createCommand('SCROLL_TYPEAHEAD_OPTION_INTO_VIEW_COMMAND')
@@ -510,11 +514,10 @@ export function useMenuAnchorRef(
       // offsetHeight and getBoundingClientRect return 0 for orphan elements,
       // causing the menu to be mispositioned (e.g. clipped by window bottom).
       if (!containerDiv.isConnected) {
-        if (className != null) {
-          containerDiv.className = className
-        }
+        containerDiv.className = className
+          ? `${className} zncz-typeahead-menu`
+          : 'zncz-typeahead-menu'
         containerDiv.setAttribute('aria-label', '')
-        containerDiv.setAttribute('id', 'typeahead-menu')
         containerDiv.setAttribute('role', 'listbox')
         containerDiv.style.display = 'block'
         containerDiv.style.position = 'absolute'
@@ -571,7 +574,13 @@ export function useMenuAnchorRef(
         ownerWin.requestAnimationFrame(applyFlip)
       }
 
-      rootElement.setAttribute('aria-controls', 'typeahead-menu')
+      // Point aria-controls at this menu instance rather than a shared id.
+      if (!containerDiv.id) {
+        containerDiv.id = `zncz-typeahead-menu-${Math.random()
+          .toString(36)
+          .slice(2, 9)}`
+      }
+      rootElement.setAttribute('aria-controls', containerDiv.id)
     }
   }, [
     editor,

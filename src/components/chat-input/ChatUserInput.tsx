@@ -33,9 +33,9 @@ import { NodeMutations } from './OnMutationPlugin'
 import { SubmitButton } from './SubmitButton'
 
 // 输入框 mentionable 数量上限
-export const MAX_MENTION_COUNT = 10 // @ 提及文件/文件夹 合计上限
+const MAX_MENTION_COUNT = 10 // @ 提及文件/文件夹 合计上限
 export const MAX_BLOCK_COUNT = 5 // 选中文本块上限
-export const MAX_IMAGE_COUNT = 5 // 图片上限
+const MAX_IMAGE_COUNT = 5 // 图片上限
 
 export type ChatUserInputRef = {
   focus: () => void
@@ -44,7 +44,7 @@ export type ChatUserInputRef = {
 export type ChatUserInputProps = {
   initialSerializedEditorState: SerializedEditorState | null
   onChange: (content: SerializedEditorState) => void
-  onSubmit: (content: SerializedEditorState) => void
+  onSubmit: (content: SerializedEditorState) => void | Promise<void>
   onFocus: () => void
   mentionables: Mentionable[]
   setMentionables: (mentionables: Mentionable[]) => void
@@ -247,9 +247,11 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
 
     const handleSubmit = () => {
       const content = editorRef.current?.getEditorState()?.toJSON()
-      if (content) {
-        onSubmit(content)
-      }
+      if (!content) return
+      // Errors are surfaced by the caller; avoid an unhandled rejection here.
+      void Promise.resolve(onSubmit(content)).catch((error: unknown) => {
+        console.error('Failed to submit message', error)
+      })
     }
 
     return (

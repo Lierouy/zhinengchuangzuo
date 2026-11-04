@@ -16,11 +16,7 @@ import {
   MentionableImage,
 } from '../../types/mentionable'
 import { ContentPart, RequestMessage } from '../../types/request'
-import {
-  getNestedFiles,
-  readMultipleTFiles,
-  readTFileContent,
-} from '../obsidian'
+import { getNestedFiles, readMultipleTFiles } from '../obsidian'
 
 export class PromptGenerator {
   private app: App
@@ -123,12 +119,13 @@ export class PromptGenerator {
     const requestMessages: RequestMessage[] = messages.flatMap(
       (message): RequestMessage[] => {
         if (message.role === 'user') {
-          return [
-            {
-              role: 'user',
-              content: message.promptContent ?? '',
-            },
-          ]
+          const content = message.promptContent
+          // Never send an empty user turn: it adds no information and some
+          // providers reject it.
+          if (!content || (typeof content === 'string' && !content.trim())) {
+            return []
+          }
+          return [{ role: 'user', content }]
         } else if (message.role === 'assistant') {
           return this.parseAssistantMessage({ message })
         }
@@ -169,7 +166,7 @@ export class PromptGenerator {
     try {
       if (!message.content) {
         return {
-          promptContent: '',
+          promptContent: null,
           matchingText: '',
         }
       }
@@ -180,7 +177,7 @@ export class PromptGenerator {
       // Step 1.5: Read current-file content (only for latest message)
       let currentFileContent = ''
       if (currentFile) {
-        currentFileContent = await readTFileContent(currentFile, this.app.vault)
+        currentFileContent = await this.app.vault.cachedRead(currentFile)
         seenFiles?.add(currentFile.path)
       }
 
@@ -190,9 +187,7 @@ export class PromptGenerator {
       const folders = message.mentionables
         .filter((m): m is MentionableFolder => m.type === 'folder')
         .map((m) => m.folder)
-      const nestedFiles = folders.flatMap((folder) =>
-        getNestedFiles(folder, this.app.vault),
-      )
+      const nestedFiles = folders.flatMap((folder) => getNestedFiles(folder))
       const allFiles = [...files, ...nestedFiles]
 
       // Step 1.2: Intra-message dedup by path (first occurrence wins)

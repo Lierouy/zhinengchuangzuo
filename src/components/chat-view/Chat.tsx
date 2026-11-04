@@ -26,8 +26,7 @@ import { getChatModelClient } from '../../core/manager'
 import { TemplateManager } from '../../database/template/TemplateManager'
 import { useChatHistory } from '../../hooks/useChatHistory'
 import {
-  AssistantToolMessageGroup,
-  ChatAssistantMessage,
+  ChatAssistantMessageGroup,
   ChatMessage,
   ChatUserMessage,
 } from '../../types/chat'
@@ -36,17 +35,14 @@ import {
   MentionableBlockData,
   MentionableCurrentFile,
 } from '../../types/mentionable'
-import {
-  LLMRequestNonStreaming,
-  LLMRequestStreaming,
-  RequestMessage,
-} from '../../types/request'
+import { RequestMessage } from '../../types/request'
 import {
   getMentionableKey,
   serializeMentionable,
 } from '../../utils/chat/mentionable'
-import { groupAssistantAndToolMessages } from '../../utils/chat/message-groups'
+import { groupAssistantMessages } from '../../utils/chat/message-groups'
 import { PromptGenerator } from '../../utils/chat/promptGenerator'
+import { runCompletion } from '../../utils/llm/completion'
 import { ModelSettings, buildModelRequest } from '../../utils/model-settings'
 import { getOpenFiles } from '../../utils/obsidian'
 import { ContextManagementModal } from '../modals/ContextManagementModal'
@@ -82,18 +78,13 @@ export type ChatRef = {
   openNewChat: (selectedBlock?: MentionableBlockData) => void
   addSelectionToChat: (selectedBlock: MentionableBlockData) => void
   focusMessage: () => void
-  addAssistantMessage: (message: ChatAssistantMessage) => void
   startHandleStream: (fileContent: string) => Promise<void>
 }
 
-export type ChatProps = {
-  selectedBlock?: MentionableBlockData
-}
-
-const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
+const Chat = forwardRef<ChatRef>((_props, ref) => {
   const app = useApp()
   const plugin = usePlugin()
-  const { settings, setSettings } = useSettings()
+  const { settings } = useSettings()
 
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -110,40 +101,10 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
 
   const templateManager = useMemo(() => new TemplateManager(app), [app])
 
-  const [inputMessage, setInputMessage] = useState<ChatUserMessage>(() => {
-    const newMessage = getNewInputMessage(app)
-    if (props.selectedBlock) {
-      newMessage.mentionables = [
-        ...newMessage.mentionables,
-        {
-          type: 'block',
-          ...props.selectedBlock,
-        },
-      ]
-    }
-    return newMessage
-  })
-  const [addedBlockKey, setAddedBlockKey] = useState<string | null>(
-    props.selectedBlock
-      ? getMentionableKey(
-          serializeMentionable({
-            type: 'block',
-            ...props.selectedBlock,
-          }),
-        )
-      : null,
+  const [inputMessage, setInputMessage] = useState<ChatUserMessage>(() =>
+    getNewInputMessage(app),
   )
-  // Keep addedBlockKey in sync with props.selectedBlock
-  useEffect(() => {
-    if (props.selectedBlock) {
-      const key = getMentionableKey(
-        serializeMentionable({ type: 'block', ...props.selectedBlock }),
-      )
-      setAddedBlockKey(key)
-    } else {
-      setAddedBlockKey(null)
-    }
-  }, [props.selectedBlock])
+  const [addedBlockKey, setAddedBlockKey] = useState<string | null>(null)
   // 将 conversationId 与 chatMessages 合并为单一 state，
   // 保证切换会话时两者原子更新，避免 React StrictMode 下
   // 自动保存 effect 捕获到中间状态（新 ID + 旧消息）导致数据错误覆盖。
@@ -166,14 +127,16 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
       [],
     )
 
-  const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null)
+  const [focusedMessageId, setFocusedMessageId] = useState<string | null>(
+    inputMessage.id,
+  )
   const [externalStreamActive, setExternalStreamActive] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const PAGE_SIZE = 50
 
-  const groupedChatMessages: (ChatUserMessage | AssistantToolMessageGroup)[] =
+  const groupedChatMessages: (ChatUserMessage | ChatAssistantMessageGroup)[] =
     useMemo(() => {
-      return groupAssistantAndToolMessages(chatMessages)
+      return groupAssistantMessages(chatMessages)
     }, [chatMessages])
 
   // 计算总页数
@@ -241,6 +204,13 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
     }
   }, [groupedChatMessages.length, currentPage, forceScrollToBottom])
 
+  // 页码超出总页数时（例如删除消息后）自动收敛，避免空白页
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
   // Smart scrolling based on page position (skip on message deletion)
   const prevScrollLen = useRef<number>(0)
   useEffect(() => {
@@ -277,6 +247,17 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
       promptGenerator,
     })
 
+  const isBusy = submitChatMutation.isPending || externalStreamActive
+
+  // Deleting a message may shrink the page count; clamp the page afterwards
+  // instead of scheduling a state update from inside a state updater.
+  const handleDeleteMessage = useCallback(
+    (id: string) => {
+      setChatMessages((prev) => prev.filter((m) => m.id !== id))
+    },
+    [setChatMessages],
+  )
+
   // Start a streaming assistant message for handle of `fileContent`.
   const startHandleStream = useCallback(
     async (fileContent: string) => {
@@ -288,7 +269,6 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
         const { providerClient, model } = getChatModelClient({
           modelId: settings.chatModelId,
           settings,
-          setSettings,
         })
 
         if (!providerClient || !model) {
@@ -326,108 +306,29 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
             messages,
           )
 
-          const useStreaming = !!baseRequest.stream
-
-          if (useStreaming) {
-            const responseStream = await providerClient.streamResponse(
-              model,
-              baseRequest as LLMRequestStreaming,
-              { signal: abortController.signal },
-            )
-
-            let assistantMessage: ChatAssistantMessage | null = null
-            for await (const chunk of responseStream) {
-              if (abortController.signal.aborted) break
-
-              if (!assistantMessage) {
-                assistantMessage = {
-                  id: `assistant-${Date.now()}`,
-                  role: 'assistant',
-                  content: '',
-                  metadata: {
-                    usage: {
-                      prompt_tokens: 0,
-                      completion_tokens: 0,
-                      total_tokens: 0,
-                    },
-                    model: model.model,
-                  },
-                }
-                if (isMounted.current) {
-                  const assistant = assistantMessage
-                  setChatMessages((prev) => [...prev, assistant])
-                }
-              }
-
-              const contentChunk = chunk.choices[0]?.delta?.content ?? ''
-              assistantMessage.content += contentChunk
-              const reasoningChunk = chunk.choices[0]?.delta?.reasoning
-              if (reasoningChunk)
-                assistantMessage.reasoning =
-                  (assistantMessage.reasoning ?? '') + reasoningChunk
-
-              const currentUsage = assistantMessage.metadata?.usage ?? {
-                prompt_tokens: 0,
-                completion_tokens: 0,
-                total_tokens: 0,
-              }
-              assistantMessage.metadata = {
-                ...assistantMessage.metadata,
-                usage: {
-                  prompt_tokens:
-                    chunk.usage?.prompt_tokens ?? currentUsage.prompt_tokens,
-                  completion_tokens:
-                    chunk.usage?.completion_tokens ??
-                    currentUsage.completion_tokens,
-                  total_tokens:
-                    chunk.usage?.total_tokens ?? currentUsage.total_tokens,
-                },
-              }
-
-              if (isMounted.current) {
-                const assistant = assistantMessage
-                setChatMessages((prev) => {
-                  const newMessages = [...prev]
-                  const idx = newMessages.findIndex(
-                    (m) => m.id === assistant.id,
-                  )
-                  if (idx !== -1) newMessages[idx] = { ...assistant }
-                  return newMessages
-                })
-              }
-
-              autoScrollToBottom()
-            }
-          } else {
-            const nonStreamResponse = await providerClient.generateResponse(
-              model,
-              baseRequest as LLMRequestNonStreaming,
-              { signal: abortController.signal },
-            )
-            const choice = nonStreamResponse.choices?.[0]
-            const assistantMessage: ChatAssistantMessage = {
-              id: `assistant-${Date.now()}`,
-              role: 'assistant',
-              content: choice?.message?.content ?? '',
-              reasoning: choice?.message?.reasoning ?? undefined,
-              metadata: {
-                usage: nonStreamResponse.usage ?? {
-                  prompt_tokens: 0,
-                  completion_tokens: 0,
-                  total_tokens: 0,
-                },
-                model: nonStreamResponse.model,
-              },
-            }
-            if (isMounted.current)
-              setChatMessages((prev) => [...prev, assistantMessage])
-            autoScrollToBottom()
-          }
+          await runCompletion({
+            providerClient,
+            model,
+            request: baseRequest,
+            signal: abortController.signal,
+            onUpdate: (assistantMessage) => {
+              if (!isMounted.current) return
+              setChatMessages((prev) => {
+                const idx = prev.findIndex((m) => m.id === assistantMessage.id)
+                if (idx === -1) return [...prev, assistantMessage]
+                const next = [...prev]
+                next[idx] = assistantMessage
+                return next
+              })
+            },
+            onScroll: autoScrollToBottom,
+          })
         } finally {
           unregister()
           if (isMounted.current) setExternalStreamActive(false)
         }
       } catch (e) {
+        if (e instanceof Error && e.name === 'AbortError') return
         console.error('StartHandleStream failed', e)
         new Notice('Unable to start file processing, please check the console')
         if (isMounted.current) setExternalStreamActive(false)
@@ -439,7 +340,6 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
       setChatMessages,
       autoScrollToBottom,
       settings,
-      setSettings,
       templateManager,
     ],
   )
@@ -468,7 +368,7 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
         // 避免 React StrictMode 下两次独立 setState 产生中间状态被自动保存捕获。
         setConversationState({ conversationId, chatMessages: conversation })
         // 默认打开最后一页
-        const initialGrouped = groupAssistantAndToolMessages(conversation)
+        const initialGrouped = groupAssistantMessages(conversation)
         const initialTotalPages = Math.max(
           1,
           Math.ceil(initialGrouped.length / PAGE_SIZE),
@@ -516,6 +416,9 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
     abortActiveStreams()
   }
 
+  const includeCurrentFileContent =
+    settings.chatOptions.includeCurrentFileContent
+
   const handleUserMessageSubmit = useCallback(
     async ({ inputChatMessages }: { inputChatMessages: ChatMessage[] }) => {
       abortActiveStreams()
@@ -533,7 +436,7 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
                 (m) => m.type === 'current-file',
               )?.file
               const currentFile =
-                currentFileRaw && settings.chatOptions.includeCurrentFileContent
+                currentFileRaw && includeCurrentFileContent
                   ? currentFileRaw
                   : undefined
 
@@ -569,23 +472,16 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
 
       submitChatMutation.mutate({
         chatMessages: compiledMessages,
-        _conversationId: currentConversationId,
       })
     },
     [
       submitChatMutation,
-      currentConversationId,
       promptGenerator,
       abortActiveStreams,
       setChatMessages,
-      settings.chatOptions.includeCurrentFileContent,
+      includeCurrentFileContent,
     ],
   )
-
-  useEffect(() => {
-    setFocusedMessageId(inputMessage.id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   // 组件初始化时自动加载最近的历史会话（只执行一次）
   const hasLoadedInitialConversation = useRef(false)
@@ -594,22 +490,25 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
       hasLoadedInitialConversation.current = true
       // 取第一个就是最近的会话
       const recentConversation = chatList[0]
-      handleLoadConversation(recentConversation.id)
+      void handleLoadConversation(recentConversation.id)
     }
   }, [chatList, handleLoadConversation])
 
   useEffect(() => {
-    const updateConversationAsync = async () => {
-      try {
-        if (chatMessages.length > 0) {
-          createOrUpdateConversation(currentConversationId, chatMessages)
-        }
-      } catch (error) {
+    if (chatMessages.length === 0) return
+
+    let cancelled = false
+    createOrUpdateConversation(currentConversationId, chatMessages).catch(
+      (error) => {
+        if (cancelled) return
         new Notice('Failed to save chat history')
         console.error('Failed to save chat history', error)
-      }
+      },
+    )
+
+    return () => {
+      cancelled = true
     }
-    updateConversationAsync()
   }, [currentConversationId, chatMessages, createOrUpdateConversation])
 
   // Updates the currentFile of the focused message (input or chat history)
@@ -769,9 +668,6 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
       if (!focusedMessageId) return
       chatUserInputRefs.current.get(focusedMessageId)?.focus()
     },
-    addAssistantMessage: (message: ChatAssistantMessage) => {
-      setChatMessages((prev) => [...prev, message])
-    },
     startHandleStream: async (fileContent: string) => {
       await startHandleStream(fileContent)
     },
@@ -884,53 +780,21 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
           </div>
         </div>
         <div className="zncz-chat-messages" ref={chatMessagesRef}>
-          {currentPageMessages.map((messageOrGroup, _index) =>
+          {currentPageMessages.map((messageOrGroup) =>
             !Array.isArray(messageOrGroup) ? (
               <UserMessageItem
                 key={messageOrGroup.id}
                 message={messageOrGroup}
-                isLoading={submitChatMutation.isPending || externalStreamActive}
-                onDelete={(id) => {
-                  setChatMessages((prev) => {
-                    const newMessages = prev.filter((m) => m.id !== id)
-                    const newTotalPages = Math.max(
-                      1,
-                      Math.ceil(
-                        groupAssistantAndToolMessages(newMessages).length /
-                          PAGE_SIZE,
-                      ),
-                    )
-                    if (currentPage > newTotalPages) {
-                      setTimeout(() => setCurrentPage(newTotalPages), 0)
-                    }
-                    return newMessages
-                  })
-                }}
+                isLoading={isBusy}
+                onDelete={handleDeleteMessage}
               />
             ) : (
               messageOrGroup.map((msg) => (
                 <UserMessageItem
                   key={msg.id}
                   message={msg}
-                  isLoading={
-                    submitChatMutation.isPending || externalStreamActive
-                  }
-                  onDelete={(id) => {
-                    setChatMessages((prev) => {
-                      const newMessages = prev.filter((m) => m.id !== id)
-                      const newTotalPages = Math.max(
-                        1,
-                        Math.ceil(
-                          groupAssistantAndToolMessages(newMessages).length /
-                            PAGE_SIZE,
-                        ),
-                      )
-                      if (currentPage > newTotalPages) {
-                        setTimeout(() => setCurrentPage(newTotalPages), 0)
-                      }
-                      return newMessages
-                    })
-                  }}
+                  isLoading={isBusy}
+                  onDelete={handleDeleteMessage}
                 />
               ))
             ),
@@ -968,7 +832,10 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
               // Error already shown by handleUserMessageSubmit, keep input content
               return
             }
-            setInputMessage(getNewInputMessage(app))
+            const nextInputMessage = getNewInputMessage(app)
+            setInputMessage(nextInputMessage)
+            setAddedBlockKey(null)
+            setFocusedMessageId(nextInputMessage.id)
           }}
           onFocus={() => {
             setFocusedMessageId(inputMessage.id)
@@ -982,7 +849,7 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
           }}
           autoFocus
           addedBlockKey={addedBlockKey}
-          isLoading={submitChatMutation.isPending || externalStreamActive}
+          isLoading={isBusy}
           onAbort={abortActiveStreams}
         />
       </div>

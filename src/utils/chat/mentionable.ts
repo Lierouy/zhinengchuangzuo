@@ -117,8 +117,22 @@ export function getMentionableKey(mentionable: SerializedMentionable): string {
     case 'block':
       return `block:${mentionable.file}:${mentionable.startLine}:${mentionable.endLine}:${mentionable.content}`
     case 'image':
-      return `image:${mentionable.name}:${mentionable.data.length}:${mentionable.data.slice(-32)}`
+      return `image:${mentionable.name}:${hashString(mentionable.data)}`
   }
+}
+
+/**
+ * Small non-cryptographic hash (FNV-1a) used to build stable identity keys.
+ * Avoids slicing hundreds of KB of base64 and has far fewer collisions than
+ * length + tail comparison.
+ */
+function hashString(value: string): string {
+  let hash = 0x811c9dc5
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return (hash >>> 0).toString(36)
 }
 
 export function getMentionableName(mentionable: Mentionable): string {

@@ -7,7 +7,6 @@ import {
   ROOT_DIR,
   TEMPLATE_DIR,
 } from '../../../database/constants'
-import ZhinengchuangzuoPlugin from '../../../main'
 import { parseZhinengchuangzuoSettings } from '../../../settings/schema/settings'
 import { ObsidianButton } from '../../common/ObsidianButton'
 import { ObsidianSetting } from '../../common/ObsidianSetting'
@@ -15,7 +14,6 @@ import { ConfirmModal } from '../../modals/ConfirmModal'
 
 type EtcSectionProps = {
   app: App
-  plugin: ZhinengchuangzuoPlugin
 }
 
 export function EtcSection({ app }: EtcSectionProps) {

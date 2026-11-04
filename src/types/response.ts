@@ -15,8 +15,6 @@ export type LLMResponseStreaming = LLMResponseBase & {
   object: 'chat.completion.chunk'
 }
 
-export type LLMResponse = LLMResponseNonStreaming | LLMResponseStreaming
-
 export type ResponseUsage = {
   prompt_tokens: number
   completion_tokens: number
@@ -30,7 +28,6 @@ type NonStreamingChoice = {
     reasoning?: string | null
     role: string
   }
-  error?: Error
 }
 
 type StreamingChoice = {
@@ -40,10 +37,4 @@ type StreamingChoice = {
     reasoning?: string | null
     role?: string
   }
-  error?: Error
-}
-
-type Error = {
-  code: number // See "Error Handling" section
-  message: string
 }

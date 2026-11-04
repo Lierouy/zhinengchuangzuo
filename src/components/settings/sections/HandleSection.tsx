@@ -11,7 +11,6 @@ import { ObsidianTextInput } from '../../common/ObsidianTextInput'
 type HandleSectionProps = {
   app: App
   showRequired?: boolean
-  onClose?: () => void
 }
 
 export function HandleSection({

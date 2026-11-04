@@ -9,10 +9,25 @@ export function SubmitButton({
   isLoading?: boolean
   onAbort?: () => void
 }) {
+  // While loading, the button either aborts or does nothing — it must never fall through to `onClick` and submit a duplicate message.
+  const handleClick = () => {
+    if (isLoading) {
+      onAbort?.()
+      return
+    }
+    onClick()
+  }
+
   return (
     <div
       className="zncz-chat-user-input-submit-button"
-      onClick={isLoading && onAbort ? onAbort : onClick}
+      onClick={handleClick}
+      onKeyDown={(evt) => {
+        if (evt.key === 'Enter' || evt.key === ' ') {
+          evt.preventDefault()
+          handleClick()
+        }
+      }}
       style={
         isLoading
           ? {

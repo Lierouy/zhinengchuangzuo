@@ -1,12 +1,6 @@
-import { ChatModel } from './types/chat-model.types'
-import { LLMProvider, LLMProviderType } from './types/provider.types'
+import { LLMProviderType } from './types/provider.types'
 
 export const CHAT_VIEW_TYPE = 'zncz-chat-view'
-
-// Default model ids - since there are no defaults, these won't be used
-// User must configure their own provider and model
-export const DEFAULT_CHAT_MODEL_ID = ''
-export const RECOMMENDED_MODELS_FOR_CHAT: string[] = []
 
 /*
  * When adding a new provider, make sure to update these files:
@@ -50,10 +44,3 @@ export const PROVIDER_TYPES_INFO = {
     }[]
   }
 >
-/*
- * Important:
- * 1. When adding new default provider, settings migration should be added
- * 2. If there's same provider id in user's settings, it's data should be overwritten by default provider
- */
-export const DEFAULT_PROVIDERS: readonly LLMProvider[] = []
-export const DEFAULT_CHAT_MODELS: readonly ChatModel[] = []

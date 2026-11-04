@@ -1,5 +1,4 @@
 import { App } from 'obsidian'
-import _React from 'react'
 
 import { SettingsProvider } from '../../contexts/settings-context'
 import ZhinengchuangzuoPlugin from '../../main'
@@ -9,7 +8,6 @@ import { HandleSection } from '../settings/sections/HandleSection'
 type HandleSectionModalContentProps = {
   app: App
   plugin: ZhinengchuangzuoPlugin
-  onClose?: () => void
 }
 
 function HandleSectionModalContent({

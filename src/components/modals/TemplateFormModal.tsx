@@ -20,7 +20,7 @@ export class CreateTemplateModal extends ReactModal<TemplateFormComponentProps> 
   constructor({ app, onSubmit }: { app: App; onSubmit?: () => void }) {
     super({
       app: app,
-      Component: TemplateFormComponentWrapper,
+      Component: TemplateFormComponent,
       props: {
         app,
         onSubmit,
@@ -44,7 +44,7 @@ export class EditTemplateModal extends ReactModal<TemplateFormComponentProps> {
   }) {
     super({
       app: app,
-      Component: TemplateFormComponentWrapper,
+      Component: TemplateFormComponent,
       props: {
         app,
         templateId,
@@ -55,22 +55,6 @@ export class EditTemplateModal extends ReactModal<TemplateFormComponentProps> {
       },
     })
   }
-}
-
-function TemplateFormComponentWrapper({
-  app,
-  templateId,
-  onSubmit,
-  onClose,
-}: TemplateFormComponentProps) {
-  return (
-    <TemplateFormComponent
-      app={app}
-      templateId={templateId}
-      onSubmit={onSubmit}
-      onClose={onClose}
-    />
-  )
 }
 
 function TemplateFormComponent({

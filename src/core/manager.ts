@@ -11,34 +11,17 @@ import { OpenAIProvider } from './openaiProvider'
  * OpenAI-compatible provider includes token usage statistics
  * in the final chunk of the stream (following OpenAI's behavior).
  */
-export function getProviderClient({
+function getProviderClient({
   providerId,
   settings,
-  setSettings,
 }: {
   providerId: string
   settings: ZhinengchuangzuoSettings
-  setSettings?: (newSettings: ZhinengchuangzuoSettings) => void | Promise<void>
 }): BaseLLMProvider<LLMProvider> {
   const provider = settings.providers.find((p) => p.id === providerId)
   if (!provider) {
     throw new Error(`Provider ${providerId} not found`)
   }
-
-  const _onProviderUpdate = setSettings
-    ? async (targetProviderId: string, update: Partial<LLMProvider>) => {
-        const updatedProviders: LLMProvider[] = settings.providers.map(
-          (item) =>
-            item.id === targetProviderId
-              ? ({ ...item, ...update } as LLMProvider)
-              : item,
-        )
-        await setSettings({
-          ...settings,
-          providers: updatedProviders,
-        })
-      }
-    : undefined
 
   switch (provider.type) {
     case 'openai-compatible': {
@@ -53,11 +36,9 @@ export function getProviderClient({
 export function getChatModelClient({
   modelId,
   settings,
-  setSettings,
 }: {
   modelId: string
   settings: ZhinengchuangzuoSettings
-  setSettings: (newSettings: ZhinengchuangzuoSettings) => void | Promise<void>
 }): {
   providerClient: BaseLLMProvider<LLMProvider>
   model: ChatModel
@@ -70,7 +51,6 @@ export function getChatModelClient({
   const providerClient = getProviderClient({
     providerId: chatModel.providerId,
     settings,
-    setSettings,
   })
 
   return {

@@ -1,7 +1,6 @@
 import { Settings, Trash } from 'lucide-react'
 import { App } from 'obsidian'
 
-import { DEFAULT_CHAT_MODELS } from '../../../constants'
 import { useSettings } from '../../../contexts/settings-context'
 import ZhinengchuangzuoPlugin from '../../../main'
 import { ObsidianToggle } from '../../common/ObsidianToggle'
@@ -89,30 +88,20 @@ export function ModelsSection({ app, plugin }: ModelsSectionProps) {
                 </td>
                 <td>
                   <div className="zncz-settings-actions">
-                    {!DEFAULT_CHAT_MODELS.some(
-                      (v) => v.model === chatModel.model,
-                    ) && (
-                      <>
-                        <button
-                          onClick={() =>
-                            new EditChatModelModal(
-                              app,
-                              plugin,
-                              chatModel,
-                            ).open()
-                          }
-                          className="clickable-icon"
-                        >
-                          <Settings />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteChatModel(chatModel.model)}
-                          className="clickable-icon"
-                        >
-                          <Trash />
-                        </button>
-                      </>
-                    )}
+                    <button
+                      onClick={() =>
+                        new EditChatModelModal(app, plugin, chatModel).open()
+                      }
+                      className="clickable-icon"
+                    >
+                      <Settings />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteChatModel(chatModel.model)}
+                      className="clickable-icon"
+                    >
+                      <Trash />
+                    </button>
                   </div>
                 </td>
               </tr>

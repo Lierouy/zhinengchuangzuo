@@ -1,4 +1,3 @@
-import { RECOMMENDED_MODELS_FOR_CHAT } from '../../../constants'
 import { useSettings } from '../../../contexts/settings-context'
 import { ObsidianDropdown } from '../../common/ObsidianDropdown'
 import { ObsidianSetting } from '../../common/ObsidianSetting'
@@ -18,10 +17,7 @@ export function ChatSection() {
           options={Object.fromEntries(
             settings.chatModels
               .filter(({ enable }) => enable ?? true)
-              .map((chatModel) => [
-                chatModel.model,
-                `${chatModel.model}${RECOMMENDED_MODELS_FOR_CHAT.includes(chatModel.model) ? ' (Recommended)' : ''}`,
-              ]),
+              .map((chatModel) => [chatModel.model, chatModel.model]),
           )}
           onChange={async (value) => {
             await setSettings({

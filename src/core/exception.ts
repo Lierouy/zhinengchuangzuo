@@ -28,16 +28,6 @@ export class LLMBaseUrlNotSetException extends Error {
   }
 }
 
-export class LLMRateLimitExceededException extends Error {
-  constructor(
-    message: string,
-    public rawError?: Error,
-  ) {
-    super(message)
-    this.name = 'LLMRateLimitExceededException'
-  }
-}
-
 export class LLMModelNotFoundException extends Error {
   constructor(
     message: string,

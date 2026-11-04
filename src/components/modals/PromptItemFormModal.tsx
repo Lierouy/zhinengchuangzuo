@@ -62,7 +62,6 @@ function PromptItemFormComponent({
   onClose,
 }: PromptItemFormComponentProps) {
   const contextManager = useMemo(() => new ContextManager(app), [app])
-  const isEditing = !!promptItem
 
   const [name, setName] = useState(promptItem?.name ?? '')
   const [content, setContent] = useState(promptItem?.content ?? '')
@@ -91,10 +90,9 @@ function PromptItemFormComponent({
 
     // 收集所有会形成循环的提示 ID
     const cyclicIds = new Set<string>()
-    const editingItem = promptItem
-    if (isEditing && editingItem) {
+    if (promptItem) {
       // 如果其他提示引用了当前提示，选择它会导致 A→B→A 循环
-      const selfId = editingItem.id
+      const selfId = promptItem.id
       for (const p of allPrompts) {
         if (p.id === selfId) continue
         // B 引用了 A（当前），那当前提示就不能引用 B
@@ -113,14 +111,14 @@ function PromptItemFormComponent({
     }
 
     for (const p of allPrompts) {
-      if (isEditing && editingItem && p.id === editingItem.id) continue
+      if (promptItem && p.id === promptItem.id) continue
       if (cyclicIds.has(p.id)) continue
       // 排除始终激活或被禁用的提示
       if (!p.conditionalActivation || !p.enabled) continue
       options[p.id] = p.name
     }
     return options
-  }, [allPrompts, isEditing, promptItem])
+  }, [allPrompts, promptItem])
 
   const handleSubmit = async () => {
     const trimmedName = name.trim()
@@ -159,7 +157,7 @@ function PromptItemFormComponent({
         chainActivation: conditionalActivation ? chainActivation : null,
       }
 
-      if (isEditing && promptItem) {
+      if (promptItem) {
         await contextManager.updatePromptItem(groupId, promptItem.id, updates)
       } else {
         await contextManager.addPromptItem(groupId, {

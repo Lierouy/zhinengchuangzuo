@@ -34,11 +34,24 @@ function migrateSettings(
 export function parseZhinengchuangzuoSettings(
   data: unknown,
 ): ZhinengchuangzuoSettings {
+  // Read the raw version before schema parsing: the schema's `.catch()` would
+  // otherwise silently rewrite an old version to the current one, making
+  // migrations unreachable.
+  const rawVersion =
+    data && typeof data === 'object' && 'version' in data
+      ? (data as { version?: unknown }).version
+      : undefined
+
   try {
     const migratedData = migrateSettings(data as Record<string, unknown>)
     return zhinengchuangzuoSettingsSchema.parse(migratedData)
   } catch (error) {
     console.warn('Invalid settings provided, using defaults:', error)
+    if (rawVersion !== undefined && rawVersion !== SETTINGS_SCHEMA_VERSION) {
+      console.warn(
+        `Settings version ${JSON.stringify(rawVersion)} could not be migrated to ${SETTINGS_SCHEMA_VERSION}; falling back to defaults.`,
+      )
+    }
     return zhinengchuangzuoSettingsSchema.parse({})
   }
 }

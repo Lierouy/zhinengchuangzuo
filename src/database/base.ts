@@ -1,5 +1,7 @@
 import { App, normalizePath } from 'obsidian'
 
+import { ensureFolderExists } from '../utils/obsidian'
+
 const getBaseName = (filePath: string): string => {
   const normalized = normalizePath(filePath)
   return normalized.slice(normalized.lastIndexOf('/') + 1)
@@ -8,23 +10,24 @@ const getBaseName = (filePath: string): string => {
 export abstract class AbstractJsonRepository<T, M> {
   protected dataDir: string
   protected app: App
+  private ensureDirPromise: Promise<void> | null = null
 
   constructor(app: App, dataDir: string) {
     this.app = app
     this.dataDir = normalizePath(dataDir)
-    this.ensureDirectory()
   }
 
-  private async ensureDirectory(): Promise<void> {
-    // 递归创建嵌套目录
-    const parts = this.dataDir.split('/').filter(Boolean)
-    let currentPath = ''
-    for (const part of parts) {
-      currentPath = currentPath ? `${currentPath}/${part}` : part
-      if (!(await this.app.vault.adapter.exists(currentPath))) {
-        await this.app.vault.adapter.mkdir(currentPath)
-      }
-    }
+  /**
+   * Lazily creates the data directory once. Every filesystem operation awaits
+   * this so a `create()` can never race the initial `mkdir`.
+   */
+  protected ensureDirectory(): Promise<void> {
+    this.ensureDirPromise ??= this.createDirectory()
+    return this.ensureDirPromise
+  }
+
+  private async createDirectory(): Promise<void> {
+    await ensureFolderExists(this.app, this.dataDir.split('/'))
   }
 
   // Each subclass implements how to generate a file name from a data row.
@@ -34,6 +37,7 @@ export abstract class AbstractJsonRepository<T, M> {
   protected abstract parseFileName(fileName: string): M | null
 
   public async create(row: T): Promise<void> {
+    await this.ensureDirectory()
     const fileName = this.generateFileName(row)
     const filePath = normalizePath(`${this.dataDir}/${fileName}`)
     const content = JSON.stringify(row, null, 2)
@@ -46,6 +50,7 @@ export abstract class AbstractJsonRepository<T, M> {
   }
 
   public async update(oldRow: T, newRow: T): Promise<void> {
+    await this.ensureDirectory()
     const oldFileName = this.generateFileName(oldRow)
     const newFileName = this.generateFileName(newRow)
     const content = JSON.stringify(newRow, null, 2)
@@ -64,6 +69,7 @@ export abstract class AbstractJsonRepository<T, M> {
 
   // List metadata for all records by parsing file names.
   public async listMetadata(): Promise<(M & { fileName: string })[]> {
+    await this.ensureDirectory()
     const files = await this.app.vault.adapter.list(this.dataDir)
     return files.files
       .map((filePath) => getBaseName(filePath))
@@ -78,6 +84,7 @@ export abstract class AbstractJsonRepository<T, M> {
   }
 
   public async read(fileName: string): Promise<T | null> {
+    await this.ensureDirectory()
     const filePath = normalizePath(`${this.dataDir}/${fileName}`)
     if (!(await this.app.vault.adapter.exists(filePath))) return null
 
@@ -86,6 +93,7 @@ export abstract class AbstractJsonRepository<T, M> {
   }
 
   public async delete(fileName: string): Promise<void> {
+    await this.ensureDirectory()
     const filePath = normalizePath(`${this.dataDir}/${fileName}`)
     if (await this.app.vault.adapter.exists(filePath)) {
       await this.app.vault.adapter.remove(filePath)

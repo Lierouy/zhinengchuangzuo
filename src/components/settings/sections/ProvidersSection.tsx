@@ -1,7 +1,7 @@
 import { Settings, Trash } from 'lucide-react'
 import { App } from 'obsidian'
 
-import { DEFAULT_PROVIDERS, PROVIDER_TYPES_INFO } from '../../../constants'
+import { PROVIDER_TYPES_INFO } from '../../../constants'
 import { useSettings } from '../../../contexts/settings-context'
 import ZhinengchuangzuoPlugin from '../../../main'
 import { LLMProvider } from '../../../types/provider.types'
@@ -18,9 +18,6 @@ type ProvidersSectionProps = {
 
 export function ProvidersSection({ app, plugin }: ProvidersSectionProps) {
   const { settings, setSettings } = useSettings()
-  const apiProviders = settings.providers.filter(
-    (p) => !String(p.type).endsWith('-plan'),
-  )
 
   const handleDeleteProvider = async (provider: LLMProvider) => {
     // Get associated models
@@ -69,7 +66,7 @@ export function ProvidersSection({ app, plugin }: ProvidersSectionProps) {
             </tr>
           </thead>
           <tbody>
-            {apiProviders.map((provider) => (
+            {settings.providers.map((provider) => (
               <tr key={provider.id}>
                 <td>{provider.id}</td>
                 <td>{PROVIDER_TYPES_INFO[provider.type].label}</td>
@@ -83,14 +80,12 @@ export function ProvidersSection({ app, plugin }: ProvidersSectionProps) {
                     >
                       <Settings />
                     </button>
-                    {!DEFAULT_PROVIDERS.some((v) => v.id === provider.id) && (
-                      <button
-                        onClick={() => handleDeleteProvider(provider)}
-                        className="clickable-icon"
-                      >
-                        <Trash />
-                      </button>
-                    )}
+                    <button
+                      onClick={() => handleDeleteProvider(provider)}
+                      className="clickable-icon"
+                    >
+                      <Trash />
+                    </button>
                   </div>
                 </td>
               </tr>

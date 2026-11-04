@@ -3,19 +3,18 @@ import { ItemView, WorkspaceLeaf } from 'obsidian'
 import React from 'react'
 import { Root, createRoot } from 'react-dom/client'
 
-import Chat, { ChatProps, ChatRef } from './components/chat-view/Chat'
+import Chat, { ChatRef } from './components/chat-view/Chat'
 import { CHAT_VIEW_TYPE } from './constants'
 import { AppProvider } from './contexts/app-context'
 import { ChatViewProvider } from './contexts/chat-view-context'
 import { PluginProvider } from './contexts/plugin-context'
 import { SettingsProvider } from './contexts/settings-context'
 import ZhinengchuangzuoPlugin from './main'
-import { ChatAssistantMessage } from './types/chat'
 import { MentionableBlockData } from './types/mentionable'
 
 export class ChatView extends ItemView {
   private root: Root | null = null
-  private initialChatProps?: ChatProps
+  private queryClient: QueryClient | null = null
   private chatRef: React.RefObject<ChatRef | null> = React.createRef()
 
   constructor(
@@ -23,7 +22,6 @@ export class ChatView extends ItemView {
     private plugin: ZhinengchuangzuoPlugin,
   ) {
     super(leaf)
-    this.initialChatProps = plugin.initialChatProps
   }
 
   getViewType() {
@@ -39,22 +37,24 @@ export class ChatView extends ItemView {
   }
 
   async onOpen() {
-    await this.render()
-
-    // Consume chatProps
-    this.initialChatProps = undefined
+    this.render()
   }
 
   async onClose() {
     this.root?.unmount()
+    this.root = null
+    this.queryClient?.clear()
+    this.queryClient = null
   }
 
-  async render() {
+  render() {
     if (!this.root) {
       this.root = createRoot(this.containerEl.children[1])
     }
 
-    const queryClient = new QueryClient({
+    // Reuse a single QueryClient for the lifetime of the view so caches and
+    // in-flight mutations survive re-renders.
+    this.queryClient ??= new QueryClient({
       defaultOptions: {
         queries: {
           gcTime: 0, // Immediately garbage collect queries. It prevents memory leak on ChatView close.
@@ -78,9 +78,9 @@ export class ChatView extends ItemView {
                 this.plugin.addSettingsChangeListener(listener)
               }
             >
-              <QueryClientProvider client={queryClient}>
+              <QueryClientProvider client={this.queryClient}>
                 <React.StrictMode>
-                  <Chat ref={this.chatRef} {...this.initialChatProps} />
+                  <Chat ref={this.chatRef} />
                 </React.StrictMode>
               </QueryClientProvider>
             </SettingsProvider>
@@ -92,10 +92,6 @@ export class ChatView extends ItemView {
 
   openNewChat(selectedBlock?: MentionableBlockData) {
     this.chatRef.current?.openNewChat(selectedBlock)
-  }
-
-  addAssistantMessage(message: ChatAssistantMessage) {
-    this.chatRef.current?.addAssistantMessage(message)
   }
 
   async startHandleStream(fileContent: string) {

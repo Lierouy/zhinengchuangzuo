@@ -59,17 +59,21 @@ export function formatMessages(messages: RequestMessage[]): RequestMessage[] {
     }
   }
 
-  // Merge consecutive messages of the same role
+  // Merge consecutive messages of the same role.
+  // Always push a shallow copy so the caller's message objects are never mutated.
   for (const currentMessage of nonSystemMessages) {
     const prevMessage = formattedMessages[formattedMessages.length - 1]
 
     if (prevMessage && prevMessage.role === currentMessage.role) {
-      prevMessage.content = concatenateMessageContent(
-        prevMessage.content,
-        currentMessage.content,
-      )
+      formattedMessages[formattedMessages.length - 1] = {
+        ...prevMessage,
+        content: concatenateMessageContent(
+          prevMessage.content,
+          currentMessage.content,
+        ),
+      } as RequestMessage
     } else {
-      formattedMessages.push(currentMessage)
+      formattedMessages.push({ ...currentMessage })
     }
   }
 

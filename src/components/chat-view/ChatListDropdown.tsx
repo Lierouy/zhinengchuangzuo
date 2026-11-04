@@ -10,19 +10,23 @@ function ChatListItem({
   isFocused,
   isEditing,
   onMouseEnter,
+  onMouseMove,
   onSelect,
   onDelete,
   onStartEdit,
   onFinishEdit,
+  onCancelEdit,
 }: {
   title: string
   isFocused: boolean
   isEditing: boolean
   onMouseEnter: () => void
+  onMouseMove: () => void
   onSelect: () => Promise<void>
   onDelete: () => Promise<void>
   onStartEdit: () => void
   onFinishEdit: (title: string) => Promise<void>
+  onCancelEdit: () => void
 }) {
   const itemRef = useRef<HTMLLIElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -53,18 +57,23 @@ function ChatListItem({
   const handleConfirm = async () => {
     const trimmed = editValue.trim()
     if (!trimmed) return
-    await onFinishEdit(trimmed)
+    try {
+      await onFinishEdit(trimmed)
+    } catch (error) {
+      console.error('Failed to rename conversation', error)
+    }
   }
 
   const handleCancel = () => {
-    onFinishEdit(title)
+    onCancelEdit()
   }
 
   return (
     <li
       ref={itemRef}
-      onClick={isEditing ? undefined : onSelect}
+      onClick={isEditing ? undefined : () => void onSelect()}
       onMouseEnter={onMouseEnter}
+      onMouseMove={onMouseMove}
       className={isFocused && !isEditing ? 'selected' : ''}
     >
       {isEditing ? (
@@ -78,7 +87,7 @@ function ChatListItem({
           onKeyDown={(e) => {
             e.stopPropagation()
             if (e.key === 'Enter') {
-              handleConfirm()
+              void handleConfirm()
             } else if (e.key === 'Escape') {
               handleCancel()
             }
@@ -94,7 +103,7 @@ function ChatListItem({
             <button
               onClick={(e) => {
                 e.stopPropagation()
-                handleConfirm()
+                void handleConfirm()
               }}
               className="clickable-icon zncz-chat-list-dropdown-item-icon"
             >
@@ -122,9 +131,11 @@ function ChatListItem({
               <Edit size={16} />
             </button>
             <button
-              onClick={async (e) => {
+              onClick={(e) => {
                 e.stopPropagation()
-                await onDelete()
+                void onDelete().catch((error: unknown) => {
+                  console.error('Failed to delete conversation', error)
+                })
               }}
               className="clickable-icon zncz-chat-list-dropdown-item-icon"
             >
@@ -158,6 +169,10 @@ export function ChatListDropdown({
 
   const ownerDocument = useOwnerDocument()
 
+  // Hover must not steal the highlight while the user is navigating with the
+  // keyboard; only the most recent input modality wins.
+  const keyboardNavRef = useRef(false)
+
   useEffect(() => {
     if (open) {
       const currentIndex = chatList.findIndex(
@@ -165,21 +180,29 @@ export function ChatListDropdown({
       )
       setFocusedIndex(currentIndex === -1 ? 0 : currentIndex)
       setEditingId(null)
+      keyboardNavRef.current = false
     }
   }, [open, chatList, currentConversationId])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === 'ArrowUp') {
-        setFocusedIndex(Math.max(0, focusedIndex - 1))
-      } else if (e.key === 'ArrowDown') {
-        setFocusedIndex(Math.min(chatList.length - 1, focusedIndex + 1))
+      if (chatList.length === 0) return
+
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        keyboardNavRef.current = true
+        setFocusedIndex((prev) =>
+          e.key === 'ArrowUp'
+            ? Math.max(0, prev - 1)
+            : Math.min(chatList.length - 1, prev + 1),
+        )
       } else if (e.key === 'Enter') {
-        onSelect(chatList[focusedIndex].id)
+        const target = chatList[focusedIndex]
+        if (!target) return
         setOpen(false)
+        void onSelect(target.id)
       }
     },
-    [chatList, focusedIndex, setFocusedIndex, onSelect],
+    [chatList, focusedIndex, onSelect],
   )
 
   return (
@@ -209,7 +232,12 @@ export function ChatListDropdown({
                   isFocused={focusedIndex === index}
                   isEditing={editingId === chat.id}
                   onMouseEnter={() => {
+                    if (keyboardNavRef.current) return
                     setFocusedIndex(index)
+                  }}
+                  onMouseMove={() => {
+                    // Real pointer movement hands control back to the mouse.
+                    keyboardNavRef.current = false
                   }}
                   onSelect={async () => {
                     await onSelect(chat.id)
@@ -217,12 +245,18 @@ export function ChatListDropdown({
                   }}
                   onDelete={async () => {
                     await onDelete(chat.id)
+                    // The list may now be empty or shorter; close so the user
+                    // is not left staring at a stale popover.
+                    setOpen(false)
                   }}
                   onStartEdit={() => {
                     setEditingId(chat.id)
                   }}
                   onFinishEdit={async (title) => {
                     await onUpdateTitle(chat.id, title)
+                    setEditingId(null)
+                  }}
+                  onCancelEdit={() => {
                     setEditingId(null)
                   }}
                 />

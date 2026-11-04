@@ -1,5 +1,5 @@
 import { Check, CopyIcon, FileInput, Trash } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useApp } from '../../contexts/app-context'
 import { ChatAssistantMessage, ChatUserMessage } from '../../types/chat'
@@ -30,12 +30,9 @@ export default function UserMessageItem({
   const contentParts = useMemo(() => {
     if (message.role === 'user') {
       // 用户消息：从 mentionables 中提取图片，文本部分使用原始 content
-      const text =
-        typeof message.content === 'string'
-          ? message.content
-          : message.content
-            ? editorStateToPlainText(message.content)
-            : ''
+      const text = message.content
+        ? editorStateToPlainText(message.content)
+        : ''
       // 把 @文件名 替换为 Obsidian 内部链接 [[文件名]]，只替换 @ 前面是空格/行首的情况
       const textWithInternalLinks = text.replace(/(^|\s)@([^\s]+)/g, '$1[[$2]]')
 
@@ -50,14 +47,8 @@ export default function UserMessageItem({
       // 图片在前，文本在后
       return [...images, { type: 'text', text: textWithInternalLinks }]
     }
-    // 助手消息用 contentString
-    const text =
-      typeof message.content === 'string'
-        ? message.content
-        : message.content
-          ? editorStateToPlainText(message.content)
-          : ''
-    return [{ type: 'text', text }]
+    // 助手消息的 content 始终是字符串
+    return [{ type: 'text', text: message.content }]
   }, [message])
 
   const contentString = useMemo(() => {
@@ -68,10 +59,29 @@ export default function UserMessageItem({
       .replace(/\n+$/, '') // 去除末尾空行
   }, [contentParts])
 
+  // Timers must be cleared on unmount so a late callback cannot set state on a
+  // removed component.
+  const copiedTimerRef = useRef<number | null>(null)
+  const writtenTimerRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimerRef.current !== null) {
+        window.clearTimeout(copiedTimerRef.current)
+      }
+      if (writtenTimerRef.current !== null) {
+        window.clearTimeout(writtenTimerRef.current)
+      }
+    }
+  }, [])
+
   const handleCopy = async () => {
     await navigator.clipboard.writeText(contentString)
     setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+    if (copiedTimerRef.current !== null) {
+      window.clearTimeout(copiedTimerRef.current)
+    }
+    copiedTimerRef.current = window.setTimeout(() => setCopied(false), 1500)
   }
 
   const handleWrite = async () => {
@@ -79,7 +89,10 @@ export default function UserMessageItem({
     if (!activeFile) return
     await app.vault.append(activeFile, '\n' + contentString + '\n')
     setWritten(true)
-    setTimeout(() => setWritten(false), 1500)
+    if (writtenTimerRef.current !== null) {
+      window.clearTimeout(writtenTimerRef.current)
+    }
+    writtenTimerRef.current = window.setTimeout(() => setWritten(false), 1500)
   }
 
   // For assistant messages, extract usage info for the popover
@@ -136,10 +149,7 @@ export default function UserMessageItem({
       ) : (
         <div className="zncz-assistant-message-content">
           {message.reasoning && (
-            <AssistantMessageReasoning
-              reasoning={message.reasoning}
-              _hasContentStarted={contentString.length > 0}
-            />
+            <AssistantMessageReasoning reasoning={message.reasoning} />
           )}
           <ObsidianMarkdown content={contentString} scale="sm" />
         </div>

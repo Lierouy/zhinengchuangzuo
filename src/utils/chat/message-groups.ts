@@ -1,17 +1,17 @@
 import {
-  AssistantToolMessageGroup,
+  ChatAssistantMessageGroup,
   ChatMessage,
   ChatUserMessage,
 } from '../../types/chat'
 
-export function groupAssistantAndToolMessages(
+export function groupAssistantMessages(
   messages: ChatMessage[],
-): (ChatUserMessage | AssistantToolMessageGroup)[] {
+): (ChatUserMessage | ChatAssistantMessageGroup)[] {
   return messages.reduce(
     (
-      acc: (ChatUserMessage | AssistantToolMessageGroup)[],
+      acc: (ChatUserMessage | ChatAssistantMessageGroup)[],
       message,
-    ): (ChatUserMessage | AssistantToolMessageGroup)[] => {
+    ): (ChatUserMessage | ChatAssistantMessageGroup)[] => {
       if (message.role === 'user') {
         // Always push user messages directly
         acc.push(message)
@@ -19,8 +19,9 @@ export function groupAssistantAndToolMessages(
         // For assistant messages, check if we can add to an existing group
         const lastItem = acc[acc.length - 1]
 
-        // If last item is an array (a group), and current message is an assistant, add to group
-        if (Array.isArray(lastItem) && message.role === 'assistant') {
+        // Non-user messages are always assistant messages here, so only the
+        // previous item's shape decides whether to extend the current group.
+        if (Array.isArray(lastItem)) {
           lastItem.push(message)
         } else {
           // Otherwise, create a new group

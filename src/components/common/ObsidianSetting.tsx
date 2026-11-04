@@ -1,3 +1,4 @@
+import { clsx } from 'clsx'
 import { Setting } from 'obsidian'
 import React, {
   createContext,
@@ -6,10 +7,6 @@ import React, {
   useRef,
   useState,
 } from 'react'
-
-function classNames(...classes: (string | undefined | false | null)[]) {
-  return classes.filter(Boolean).join(' ')
-}
 
 type SettingContextValue = {
   setting: Setting | null
@@ -59,12 +56,12 @@ export function ObsidianSetting({
     setting.setDesc(desc ?? '')
     if (heading) setting.setHeading()
     setting.settingEl.setAttrs({
-      class: classNames(defaultSettingElClassName.current, className ?? ''),
+      class: clsx(defaultSettingElClassName.current, className),
     })
     setting.nameEl.setAttrs({
-      class: classNames(
+      class: clsx(
         defaultNameElClassName.current,
-        required ? 'zncz-settings-required' : '',
+        required && 'zncz-settings-required',
       ),
     })
   }, [name, desc, heading, className, setting, required])
@@ -76,10 +73,4 @@ export function ObsidianSetting({
   )
 }
 
-export const useObsidianSetting = () => {
-  const context = useContext(SettingContext)
-  if (!context) {
-    throw new Error('UseObsidianSetting must be used within ObsidianSetting')
-  }
-  return context
-}
+export const useObsidianSetting = () => useContext(SettingContext)

@@ -9,7 +9,6 @@ import {
   DOMExportOutput,
   type EditorConfig,
   type LexicalEditor,
-  type LexicalNode,
   type NodeKey,
   type SerializedTextNode,
   type Spread,
@@ -18,10 +17,10 @@ import {
 
 import { SerializedMentionable } from '../../../types/mentionable'
 
-export const MENTION_NODE_TYPE = 'mention'
-export const MENTION_NODE_ATTRIBUTE = 'data-lexical-mention'
-export const MENTION_NODE_MENTION_NAME_ATTRIBUTE = 'data-lexical-mention-name'
-export const MENTION_NODE_MENTIONABLE_ATTRIBUTE = 'data-lexical-mentionable'
+const MENTION_NODE_TYPE = 'mention'
+const MENTION_NODE_ATTRIBUTE = 'data-lexical-mention'
+const MENTION_NODE_MENTION_NAME_ATTRIBUTE = 'data-lexical-mention-name'
+const MENTION_NODE_MENTIONABLE_ATTRIBUTE = 'data-lexical-mentionable'
 
 export type SerializedMentionNode = Spread<
   {
@@ -31,29 +30,41 @@ export type SerializedMentionNode = Spread<
   SerializedTextNode
 >
 
+function parseMentionableAttribute(
+  raw: string | null,
+): SerializedMentionable | null {
+  if (!raw) return null
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (parsed && typeof parsed === 'object' && 'type' in parsed) {
+      return parsed as SerializedMentionable
+    }
+    return null
+  } catch {
+    // Malformed attribute (e.g. pasted from another app) — degrade gracefully.
+    return null
+  }
+}
+
 function $convertMentionElement(
   domNode: HTMLElement,
 ): DOMConversionOutput | null {
   const textContent = domNode.textContent
-  const mentionName =
-    domNode.getAttribute(MENTION_NODE_MENTION_NAME_ATTRIBUTE) ??
-    domNode.textContent ??
-    ''
-  const mentionable = JSON.parse(
-    domNode.getAttribute(MENTION_NODE_MENTIONABLE_ATTRIBUTE) ?? '{}',
+  if (textContent === null) return null
+
+  const mentionable = parseMentionableAttribute(
+    domNode.getAttribute(MENTION_NODE_MENTIONABLE_ATTRIBUTE),
   )
+  // Without a valid mentionable the node cannot be reconstructed; fall back to
+  // plain text instead of throwing.
+  if (!mentionable) return null
 
-  if (textContent !== null) {
-    const node = $createMentionNode(
-      mentionName,
-      mentionable as SerializedMentionable,
-    )
-    return {
-      node,
-    }
+  const mentionName =
+    domNode.getAttribute(MENTION_NODE_MENTION_NAME_ATTRIBUTE) ?? textContent
+
+  return {
+    node: $createMentionNode(mentionName, mentionable),
   }
-
-  return null
 }
 
 export class MentionNode extends TextNode {
@@ -102,7 +113,7 @@ export class MentionNode extends TextNode {
 
   createDOM(config: EditorConfig): HTMLElement {
     const dom = super.createDOM(config)
-    dom.className = MENTION_NODE_TYPE
+    dom.className = `zncz-${MENTION_NODE_TYPE}`
     return dom
   }
 
@@ -165,10 +176,4 @@ export function $createMentionNode(
   const mentionNode = new MentionNode(mentionName, mentionable)
   mentionNode.setMode('token').toggleDirectionless()
   return $applyNodeReplacement(mentionNode)
-}
-
-export function $isMentionNode(
-  node: LexicalNode | null | undefined,
-): node is MentionNode {
-  return node instanceof MentionNode
 }

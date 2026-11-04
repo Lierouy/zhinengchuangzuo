@@ -8,7 +8,6 @@ import { ContextManagementSection } from '../settings/sections/ContextManagement
 type ContextManagementModalContentProps = {
   app: App
   plugin: ZhinengchuangzuoPlugin
-  onClose?: () => void
 }
 
 function ContextManagementModalContent({
