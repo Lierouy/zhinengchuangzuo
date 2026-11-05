@@ -2,6 +2,7 @@ import { App, PluginSettingTab } from 'obsidian'
 import { Root, createRoot } from 'react-dom/client'
 
 import { SettingsTabRoot } from '../components/settings/SettingsTabRoot'
+import { AppProvider } from '../contexts/app-context'
 import { SettingsProvider } from '../contexts/settings-context'
 import ZhinengchuangzuoPlugin from '../main'
 
@@ -27,7 +28,9 @@ export class ZhinengchuangzuoSettingTab extends PluginSettingTab {
           this.plugin.addSettingsChangeListener(listener)
         }
       >
-        <SettingsTabRoot app={this.app} plugin={this.plugin} />
+        <AppProvider app={this.app}>
+          <SettingsTabRoot app={this.app} plugin={this.plugin} />
+        </AppProvider>
       </SettingsProvider>,
     )
   }

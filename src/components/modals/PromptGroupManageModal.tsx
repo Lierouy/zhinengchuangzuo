@@ -1,18 +1,25 @@
-import { Check, Edit, Trash, X } from 'lucide-react'
 import { App, Notice } from 'obsidian'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { SettingsProvider, useSettings } from '../../contexts/settings-context'
 import { PromptGroupMetadata } from '../../database/context/types'
 import { isDatabaseError } from '../../database/exception'
 import { useContextManager } from '../../hooks/useJsonManagers'
 import ZhinengchuangzuoPlugin from '../../main'
+import { InlineEditTable } from '../common/InlineEditTable'
 import { ObsidianButton } from '../common/ObsidianButton'
 import { ObsidianSetting } from '../common/ObsidianSetting'
 import { ObsidianTextInput } from '../common/ObsidianTextInput'
 import { ReactModal } from '../common/ReactModal'
 
 import { ConfirmModal } from './ConfirmModal'
+import {
+  GroupOp,
+  GroupRow,
+  applyOps,
+  findGroupNameError,
+  replayOps,
+} from './promptGroupOps'
 
 type PromptGroupManageModalComponentProps = {
   app: App
@@ -78,19 +85,22 @@ function PromptGroupManageModalComponent({
   const { settings, setSettings } = useSettings()
   const contextManager = useContextManager()
 
-  // Local working copy of groups — all edits happen here, not on disk
-  const [groupList, setGroupList] = useState<PromptGroupMetadata[]>([])
-  // Snapshot at mount time for diff computation on save
-  const initialGroupListRef = useRef<PromptGroupMetadata[]>([])
+  // Groups as they are on disk; local edits never mutate this list.
+  const [initialGroups, setInitialGroups] = useState<PromptGroupMetadata[]>([])
+  // Everything the user did while the modal was open. Nothing touches the disk
+  // before 保存, and 取消 simply throws the log away.
+  const [ops, setOps] = useState<GroupOp[]>([])
   const [loaded, setLoaded] = useState(false)
+
+  const rows = useMemo(() => applyOps(initialGroups, ops), [initialGroups, ops])
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingValue, setEditingValue] = useState('')
   const [isAdding, setIsAdding] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
 
-  // Generate temporary IDs for new groups (will be replaced with real UUIDs on save)
-  const tempIdCounterRef = useRef(0)
+  // Local key for groups that only exist in the op log.
+  const tempKeyCounterRef = useRef(0)
 
   useEffect(() => {
     let cancelled = false
@@ -98,12 +108,11 @@ function PromptGroupManageModalComponent({
       try {
         const groups = await contextManager.listGroups()
         if (!cancelled) {
-          setGroupList(groups)
-          initialGroupListRef.current = groups
+          setInitialGroups(groups)
           setLoaded(true)
         }
       } catch (error) {
-        console.error('Failed to fetch groups:', error)
+        console.error('Failed to fetch groups', error)
         if (!cancelled) setLoaded(true)
       }
     })()
@@ -114,9 +123,9 @@ function PromptGroupManageModalComponent({
 
   // ── Local-only operations (no disk writes) ──
 
-  const handleStartEdit = useCallback((group: PromptGroupMetadata) => {
-    setEditingId(group.id)
-    setEditingValue(group.name)
+  const handleStartEdit = useCallback((row: GroupRow) => {
+    setEditingId(row.key)
+    setEditingValue(row.name)
     setIsAdding(false)
   }, [])
 
@@ -126,15 +135,37 @@ function PromptGroupManageModalComponent({
   }, [])
 
   const handleSaveEdit = useCallback(
-    (groupId: string) => {
+    (row: GroupRow) => {
       const trimmed = editingValue.trim()
       if (!trimmed) {
         new Notice('Prompt group name cannot be empty')
         return
       }
-      setGroupList((prev) =>
-        prev.map((g) => (g.id === groupId ? { ...g, name: trimmed } : g)),
-      )
+
+      if (row.id === null) {
+        // Still pending creation: rename the create operation itself.
+        setOps((prev) =>
+          prev.map((op) =>
+            op.kind === 'create' && op.tempKey === row.key
+              ? { ...op, name: trimmed }
+              : op,
+          ),
+        )
+      } else {
+        const id = row.id
+        setOps((prev) => {
+          const index = prev.findIndex(
+            (op) => op.kind === 'rename' && op.id === id,
+          )
+          if (index === -1) {
+            return [...prev, { kind: 'rename', id, name: trimmed }]
+          }
+          const next = [...prev]
+          next[index] = { kind: 'rename', id, name: trimmed }
+          return next
+        })
+      }
+
       setEditingId(null)
       setEditingValue('')
     },
@@ -142,17 +173,44 @@ function PromptGroupManageModalComponent({
   )
 
   const handleDelete = useCallback(
-    (group: PromptGroupMetadata) => {
-      new ConfirmModal(app, {
-        title: '删除提示组',
-        message: `确定要删除提示组“ ${group.name} ”吗？组内的所有提示都将删除。`,
-        ctaText: '确定',
-        onConfirm: () => {
-          setGroupList((prev) => prev.filter((g) => g.id !== group.id))
-        },
-      }).open()
+    (row: GroupRow) => {
+      void (async () => {
+        // Only for the confirmation wording: how many prompts go with it.
+        let promptCount = 0
+        if (row.id !== null) {
+          try {
+            const group = await contextManager.findById(row.id)
+            promptCount = group?.prompts.length ?? 0
+          } catch (error) {
+            console.error('Failed to load prompt group', error)
+          }
+        }
+
+        new ConfirmModal(app, {
+          title: '删除提示组',
+          message:
+            `确定要删除提示组“ ${row.name} ”吗？\n` +
+            `同时也会删除 ${promptCount} 个提示。`,
+          ctaText: '确定',
+          onConfirm: () => {
+            if (row.id === null) {
+              setOps((prev) =>
+                prev.filter(
+                  (op) => op.kind !== 'create' || op.tempKey !== row.key,
+                ),
+              )
+              return
+            }
+            const id = row.id
+            setOps((prev) => [
+              ...prev.filter((op) => op.kind !== 'rename' || op.id !== id),
+              { kind: 'delete', id, name: row.name },
+            ])
+          },
+        }).open()
+      })()
     },
-    [app],
+    [app, contextManager],
   )
 
   const handleStartAdd = useCallback(() => {
@@ -172,11 +230,8 @@ function PromptGroupManageModalComponent({
       new Notice('The prompt group name cannot be empty')
       return
     }
-    const tempId = `__new_${++tempIdCounterRef.current}`
-    setGroupList((prev) => [
-      ...prev,
-      { id: tempId, name: trimmed, schemaVersion: 0 },
-    ])
+    const tempKey = `temp:${++tempKeyCounterRef.current}`
+    setOps((prev) => [...prev, { kind: 'create', tempKey, name: trimmed }])
     setIsAdding(false)
     setNewGroupName('')
   }, [newGroupName])
@@ -184,67 +239,20 @@ function PromptGroupManageModalComponent({
   // ── Save / Cancel ──
 
   const handleSave = useCallback(async () => {
-    const initial = initialGroupListRef.current
-    const current = groupList
-
-    // Build lookup maps
-    const initialIds = new Set(initial.map((g) => g.id))
-    const currentIds = new Set(current.map((g) => g.id))
-
-    // New groups: in current but not in initial
-    const newGroups = current.filter((g) => !initialIds.has(g.id))
-    // Deleted groups: in initial but not in current
-    const deletedIds = initial
-      .filter((g) => !currentIds.has(g.id))
-      .map((g) => g.id)
-    // Renamed groups: same id, different name
-    const renamedGroups = current.filter((g) => {
-      const orig = initial.find((o) => o.id === g.id)
-      return orig && orig.name !== g.name
-    })
-
-    let hasError = false
-
-    // Delete first (so rename conflicts don't matter)
-    for (const id of deletedIds) {
-      try {
-        await contextManager.deleteGroup(id)
-      } catch (error) {
-        console.error('Failed to delete group:', error)
-        new Notice('Failed to delete the prompt group')
-        hasError = true
-      }
+    // Reject everything before the first disk write, so a bad name cannot leave
+    // the repository half updated.
+    const nameError = findGroupNameError(rows)
+    if (nameError) {
+      new Notice(nameError)
+      return
     }
 
-    // Rename
-    for (const g of renamedGroups) {
-      try {
-        await contextManager.updateGroup(g.id, { name: g.name })
-      } catch (error) {
-        if (isDatabaseError(error, 'duplicate-prompt-group')) {
-          new Notice(error.message)
-        } else {
-          console.error('Failed to rename group:', error)
-          new Notice('Rename failed')
-        }
-        hasError = true
-      }
-    }
-
-    // Create new
-    for (const g of newGroups) {
-      try {
-        await contextManager.createGroup({ name: g.name, prompts: [] })
-      } catch (error) {
-        if (isDatabaseError(error, 'duplicate-prompt-group')) {
-          new Notice(error.message)
-        } else {
-          console.error('Failed to create group:', error)
-          new Notice('Failed to create prompt group')
-        }
-        hasError = true
-      }
-    }
+    // Replayed in the order the user made the edits; an edit that collides with
+    // a name only freed up later in the same batch is reported and kept.
+    const { deletedIds, failed, remaining } = await replayOps(
+      contextManager,
+      ops,
+    )
 
     // If the currently selected group was deleted, clear selection
     if (deletedIds.includes(settings.selectedPromptGroupId)) {
@@ -254,11 +262,28 @@ function PromptGroupManageModalComponent({
       })
     }
 
-    if (!hasError) {
+    if (!failed) {
       onSubmit?.()
       onClose()
+      return
     }
-  }, [groupList, contextManager, settings, setSettings, onSubmit, onClose])
+
+    if (isDatabaseError(failed.error, 'duplicate-prompt-group')) {
+      new Notice(failed.error.message)
+    } else {
+      console.error('Failed to save prompt group changes', failed.error)
+      new Notice('Failed to save the prompt group changes')
+    }
+
+    // Keep what could not be applied so the user can retry, and re-read the
+    // groups so the table matches what the disk actually holds now.
+    try {
+      setInitialGroups(await contextManager.listGroups())
+    } catch (error) {
+      console.error('Failed to reload prompt groups', error)
+    }
+    setOps(remaining)
+  }, [rows, ops, contextManager, settings, setSettings, onSubmit, onClose])
 
   const handleCancel = useCallback(() => {
     onClose()
@@ -270,100 +295,41 @@ function PromptGroupManageModalComponent({
 
   return (
     <>
-      <div className="zncz-settings-table-container">
-        <table className="zncz-settings-table">
-          <colgroup>
-            <col width="90%" />
-            <col width="10%" />
-          </colgroup>
-          <tbody>
-            {groupList.map((group) => (
-              <tr key={group.id}>
-                <td>
-                  {editingId === group.id ? (
-                    <ObsidianTextInput
-                      value={editingValue}
-                      onChange={(v: string) => setEditingValue(v)}
-                    />
-                  ) : (
-                    <div>{group.name}</div>
-                  )}
-                </td>
-                <td>
-                  <div className="zncz-settings-actions">
-                    {editingId === group.id ? (
-                      <>
-                        <button
-                          onClick={() => handleSaveEdit(group.id)}
-                          className="clickable-icon"
-                        >
-                          <Check size={16} />
-                        </button>
-                        <button
-                          onClick={handleCancelEdit}
-                          className="clickable-icon"
-                        >
-                          <X size={16} />
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => handleStartEdit(group)}
-                          className="clickable-icon"
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(group)}
-                          className="clickable-icon"
-                        >
-                          <Trash size={16} />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {isAdding && (
-              <tr>
-                <td>
+      <InlineEditTable
+        rows={rows.map((row) => ({
+          key: row.key,
+          isEditing: editingId === row.key,
+          content:
+            editingId === row.key ? (
+              <ObsidianTextInput
+                value={editingValue}
+                onChange={(v: string) => setEditingValue(v)}
+              />
+            ) : (
+              <div>{row.name}</div>
+            ),
+          onStartEdit: () => handleStartEdit(row),
+          onSaveEdit: () => handleSaveEdit(row),
+          onCancelEdit: handleCancelEdit,
+          onDelete: () => handleDelete(row),
+        }))}
+        adding={
+          isAdding
+            ? {
+                content: (
                   <ObsidianTextInput
                     value={newGroupName}
                     onChange={(v: string) => setNewGroupName(v)}
                   />
-                </td>
-                <td>
-                  <div className="zncz-settings-actions">
-                    <button
-                      onClick={handleConfirmAdd}
-                      className="clickable-icon"
-                    >
-                      <Check size={16} />
-                    </button>
-                    <button
-                      onClick={handleCancelAdd}
-                      className="clickable-icon"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            )}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colSpan={2}>
-                <button onClick={handleStartAdd} disabled={isAdding}>
-                  添加提示组
-                </button>
-              </td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+                ),
+                onSave: handleConfirmAdd,
+                onCancel: handleCancelAdd,
+              }
+            : null
+        }
+        addLabel="添加提示组"
+        onStartAdd={handleStartAdd}
+      />
       <ObsidianSetting>
         <ObsidianButton text="保存" onClick={handleSave} cta />
         <ObsidianButton text="取消" onClick={handleCancel} />

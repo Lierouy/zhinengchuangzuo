@@ -43,7 +43,7 @@ export function ContextManagementSection({
       const groups = await contextManager.listGroups()
       setGroupList(groups)
     } catch (error) {
-      console.error('Failed to fetch prompt groups:', error)
+      console.error('Failed to fetch prompt groups', error)
       setGroupList([])
     }
   }, [contextManager])
@@ -57,7 +57,7 @@ export function ContextManagementSection({
       const group = await contextManager.findById(selectedGroupId)
       setCurrentPrompts(group?.prompts ?? [])
     } catch (error) {
-      console.error('Failed to fetch prompts:', error)
+      console.error('Failed to fetch prompts', error)
       setCurrentPrompts([])
     }
   }, [contextManager, selectedGroupId])
@@ -144,7 +144,7 @@ export function ContextManagementSection({
             await contextManager.deletePromptItem(selectedGroupId, item.id)
             await fetchCurrentPrompts()
           } catch (error) {
-            console.error('Failed to delete prompt:', error)
+            console.error('Failed to delete prompt', error)
             new Notice('Failed to delete prompt')
           }
         },
@@ -182,7 +182,7 @@ export function ContextManagementSection({
         await contextManager.updateGroup(selectedGroupId, { prompts })
         await fetchCurrentPrompts()
       } catch (error) {
-        console.error('Failed to reorder prompt:', error)
+        console.error('Failed to reorder prompt', error)
         new Notice('Move prompt failed')
       }
     },

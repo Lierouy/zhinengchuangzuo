@@ -2,8 +2,10 @@ import * as Popover from '@radix-ui/react-popover'
 import { Check, Edit, Trash, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { useApp } from '../../contexts/app-context'
 import { useOwnerDocument } from '../../contexts/chat-container-context'
 import { ChatConversationMetadata } from '../../database/chat/types'
+import { ConfirmModal } from '../modals/ConfirmModal'
 
 function ChatListItem({
   title,
@@ -167,6 +169,7 @@ export function ChatListDropdown({
   const [focusedIndex, setFocusedIndex] = useState<number>(0)
   const [editingId, setEditingId] = useState<string | null>(null)
 
+  const app = useApp()
   const ownerDocument = useOwnerDocument()
 
   // Hover must not steal the highlight while the user is navigating with the
@@ -244,10 +247,17 @@ export function ChatListDropdown({
                     setOpen(false)
                   }}
                   onDelete={async () => {
-                    await onDelete(chat.id)
-                    // The list may now be empty or shorter; close so the user
-                    // is not left staring at a stale popover.
-                    setOpen(false)
+                    new ConfirmModal(app, {
+                      title: '删除会话',
+                      message: `确定要删除会话“ ${chat.title} ”吗？`,
+                      ctaText: '确定',
+                      onConfirm: async () => {
+                        await onDelete(chat.id)
+                        // The list may now be empty or shorter; close so the
+                        // user is not left staring at a stale popover.
+                        setOpen(false)
+                      },
+                    }).open()
                   }}
                   onStartEdit={() => {
                     setEditingId(chat.id)

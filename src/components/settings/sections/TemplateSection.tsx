@@ -25,7 +25,7 @@ export function TemplateSection({ app }: TemplateSectionProps) {
     try {
       setTemplateList(await templateManager.listTemplates())
     } catch (error) {
-      console.error('Failed to fetch template list:', error)
+      console.error('Failed to fetch template list', error)
       new Notice('Failed to load templates')
       setTemplateList([])
     } finally {
@@ -63,7 +63,7 @@ export function TemplateSection({ app }: TemplateSectionProps) {
             await templateManager.deleteTemplate(template.id)
             fetchTemplateList()
           } catch (error) {
-            console.error('Failed to delete template:', error)
+            console.error('Failed to delete template', error)
             new Notice('Failed to delete template')
           }
         },
@@ -87,7 +87,7 @@ export function TemplateSection({ app }: TemplateSectionProps) {
       try {
         await templateManager.reorderTemplates(reordered.map((t) => t.id))
       } catch (error) {
-        console.error('Failed to reorder templates:', error)
+        console.error('Failed to reorder templates', error)
         fetchTemplateList()
       }
     },

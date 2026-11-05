@@ -2,6 +2,8 @@ import { App, Modal } from 'obsidian'
 import React from 'react'
 import { Root, createRoot } from 'react-dom/client'
 
+import { AppProvider } from '../../contexts/app-context'
+
 type ModalProps<T> = {
   app: App
   Component: React.ComponentType<T>
@@ -26,7 +28,9 @@ export class ReactModal<T> extends Modal {
     if (this.options?.title) this.titleEl.setText(this.options.title)
     this.root = createRoot(this.contentEl)
     this.root.render(
-      <this.Component {...(this.props as T)} onClose={() => this.close()} />,
+      <AppProvider app={this.app}>
+        <this.Component {...(this.props as T)} onClose={() => this.close()} />
+      </AppProvider>,
     )
   }
 

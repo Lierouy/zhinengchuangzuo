@@ -37,7 +37,7 @@ export function EtcSection({ app }: EtcSectionProps) {
               }
             }
           } catch (error) {
-            console.error(`Failed to clean up ${dir}:`, error)
+            console.error(`Failed to clean up ${dir}`, error)
           }
         }
 

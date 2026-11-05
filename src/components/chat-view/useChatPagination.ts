@@ -4,6 +4,15 @@ import { ChatAssistantMessageGroup, ChatUserMessage } from '../../types/chat'
 
 const PAGE_SIZE = 50
 
+/**
+ * A page change swaps the whole message list, and the markdown of the new page
+ * is rendered asynchronously, so the page is still growing when the DOM update
+ * is done. The first delay scrolls as soon as the new page is on screen, the
+ * second one catches the content that rendered in the meantime.
+ */
+const FIRST_SCROLL_DELAY_MS = 50
+const SECOND_SCROLL_DELAY_MS = 350
+
 export type GroupedChatMessage = ChatUserMessage | ChatAssistantMessageGroup
 
 /** Number of pages needed to show `groupedCount` message groups. */
@@ -52,16 +61,26 @@ export function useChatPagination({
       return
     }
 
-    // Wait two frames for React to render all messages in this page
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (currentPage === totalPages) {
-          forceScrollToBottom()
-        } else {
-          forceScrollToTop()
-        }
-      })
-    })
+    const scrollToPageEdge = () => {
+      if (currentPage === totalPages) {
+        forceScrollToBottom()
+      } else {
+        forceScrollToTop()
+      }
+    }
+
+    // The top is a fixed target and only needs one attempt; the bottom is a
+    // measured height that keeps growing while the new page renders.
+    const timers = [window.setTimeout(scrollToPageEdge, FIRST_SCROLL_DELAY_MS)]
+    if (currentPage === totalPages) {
+      timers.push(
+        window.setTimeout(forceScrollToBottom, SECOND_SCROLL_DELAY_MS),
+      )
+    }
+
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer))
+    }
   }, [
     currentPage,
     totalPages,

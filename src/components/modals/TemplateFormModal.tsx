@@ -117,7 +117,7 @@ function TemplateFormComponent({
         setTemplateContent(existingTemplate.content)
       })
       .catch((error: unknown) => {
-        console.error('Failed to fetch existing template:', error)
+        console.error('Failed to fetch existing template', error)
         new Notice('Failed to load template')
       })
 

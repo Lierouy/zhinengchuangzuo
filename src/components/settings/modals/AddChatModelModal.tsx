@@ -1,4 +1,3 @@
-import { Check, Edit, Trash, X } from 'lucide-react'
 import { App, Notice } from 'obsidian'
 import { useState } from 'react'
 
@@ -9,6 +8,7 @@ import {
 import ZhinengchuangzuoPlugin from '../../../main'
 import { ChatModel, chatModelSchema } from '../../../types/chat-model.types'
 import { sanitizeModelSettings } from '../../../utils/model-settings'
+import { InlineEditTable } from '../../common/InlineEditTable'
 import { ObsidianButton } from '../../common/ObsidianButton'
 import { ObsidianDropdown } from '../../common/ObsidianDropdown'
 import { ObsidianNumberInput } from '../../common/ObsidianNumberInput'
@@ -289,104 +289,41 @@ function ChatModelFormComponent({
         name="自定义参数"
         desc="填写发送给模型的参数字段或 JSON 片段。"
       />
-      <div className="zncz-settings-table-container">
-        <table className="zncz-settings-table">
-          <colgroup>
-            <col width="90%" />
-            <col width="10%" />
-          </colgroup>
-          <tbody>
-            {customParameters.map((param, idx) => (
-              <tr key={idx}>
-                <td>
-                  {paramList.editingIndex === idx ? (
-                    <ObsidianTextInput
-                      value={paramList.editingValue}
-                      onChange={paramList.setEditingValue}
-                    />
-                  ) : (
-                    <div>{param}</div>
-                  )}
-                </td>
-                <td>
-                  <div className="zncz-settings-actions">
-                    {paramList.editingIndex === idx ? (
-                      <>
-                        <button
-                          onClick={paramList.commitEdit}
-                          className="clickable-icon"
-                        >
-                          <Check size={16} />
-                        </button>
-                        <button
-                          onClick={paramList.cancelEdit}
-                          className="clickable-icon"
-                        >
-                          <X size={16} />
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => paramList.startEdit(idx)}
-                          className="clickable-icon"
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          onClick={() => paramList.remove(idx)}
-                          className="clickable-icon"
-                        >
-                          <Trash size={16} />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {paramList.isAdding && (
-              <tr>
-                <td>
+      <InlineEditTable
+        rows={customParameters.map((param, idx) => ({
+          key: `param-${idx}`,
+          isEditing: paramList.editingIndex === idx,
+          content:
+            paramList.editingIndex === idx ? (
+              <ObsidianTextInput
+                value={paramList.editingValue}
+                onChange={paramList.setEditingValue}
+              />
+            ) : (
+              <div>{param}</div>
+            ),
+          onStartEdit: () => paramList.startEdit(idx),
+          onSaveEdit: paramList.commitEdit,
+          onCancelEdit: paramList.cancelEdit,
+          onDelete: () => paramList.remove(idx),
+        }))}
+        adding={
+          paramList.isAdding
+            ? {
+                content: (
                   <ObsidianTextInput
                     value={paramList.newValue}
                     onChange={paramList.setNewValue}
                   />
-                </td>
-                <td>
-                  <div className="zncz-settings-actions">
-                    <button
-                      onClick={paramList.commitAdd}
-                      className="clickable-icon"
-                    >
-                      <Check size={16} />
-                    </button>
-                    <button
-                      onClick={paramList.cancelAdd}
-                      className="clickable-icon"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            )}
-          </tbody>
-
-          <tfoot>
-            <tr>
-              <td colSpan={2}>
-                <button
-                  onClick={paramList.startAdd}
-                  disabled={paramList.isAdding}
-                >
-                  添加参数
-                </button>
-              </td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+                ),
+                onSave: paramList.commitAdd,
+                onCancel: paramList.cancelAdd,
+              }
+            : null
+        }
+        addLabel="添加参数"
+        onStartAdd={paramList.startAdd}
+      />
 
       <ObsidianSetting>
         <ObsidianButton

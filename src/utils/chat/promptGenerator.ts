@@ -366,7 +366,7 @@ export class PromptGenerator {
         content: activatedContents.join('\n'),
       }
     } catch (error) {
-      console.error('Failed to load context prompts:', error)
+      console.error('Failed to load context prompts', error)
       return null
     }
   }
