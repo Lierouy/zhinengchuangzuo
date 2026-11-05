@@ -14,6 +14,14 @@ type ErrorModalComponentProps = {
   options: ErrorModalOptions
 }
 
+/** `App.setting` exists at runtime but is missing from the public typings. */
+type AppWithSettingsModal = App & {
+  setting: {
+    open(): void
+    openTabById(id: string): void
+  }
+}
+
 export class ErrorModal extends ReactModal<ErrorModalComponentProps> {
   constructor(
     app: App,
@@ -58,10 +66,9 @@ function ErrorModalComponent({
             className="mod-cta"
             onClick={() => {
               onClose()
-              // @ts-expect-error: setting property exists in Obsidian's App but is not typed
-              app.setting.open()
-              // @ts-expect-error: setting property exists in Obsidian's App but is not typed
-              app.setting.openTabById('zhinengchuangzuo')
+              const { setting } = app as AppWithSettingsModal
+              setting.open()
+              setting.openTabById('zhinengchuangzuo')
             }}
           >
             打开设置

@@ -74,7 +74,7 @@ export function useChatStreamManager({
           // Only repair the settings when the selection is genuinely broken.
           if (settings.chatModels.length > 0) {
             const firstChatModel = settings.chatModels[0]
-            setSettings({
+            void setSettings({
               ...settings,
               chatModelId: firstChatModel.model,
               chatModels: settings.chatModels.map((m) =>

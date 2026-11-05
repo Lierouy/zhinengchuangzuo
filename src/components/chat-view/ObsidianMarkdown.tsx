@@ -142,7 +142,7 @@ function setupMarkdownLinks(
     evt.preventDefault()
     const linktext = linkEl.getAttribute('href')
     if (linktext) {
-      app.workspace.openLinkText(
+      void app.workspace.openLinkText(
         linktext,
         sourcePathRef.current,
         Keymap.isModEvent(evt),

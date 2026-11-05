@@ -4,7 +4,7 @@ import { PropsWithChildren, useCallback } from 'react'
 
 import { useSettings } from '../../contexts/settings-context'
 import { Mentionable, MentionableCurrentFile } from '../../types/mentionable'
-import { getMentionableIcon } from '../chat-input/get-metionable-icon'
+import { MENTIONABLE_ICONS } from '../chat-input/mentionable-icons'
 
 function BadgeBase({
   children,
@@ -52,7 +52,7 @@ function MentionBadge({
   onClick: () => void
   isFocused: boolean
 }) {
-  const Icon = getMentionableIcon(mentionable)
+  const Icon = MENTIONABLE_ICONS[mentionable.type]
   return (
     <BadgeBase onDelete={onDelete} onClick={onClick} isFocused={isFocused}>
       <div className="zncz-chat-user-input-file-badge-name">
@@ -87,7 +87,7 @@ function CurrentFileBadge({
   const handleCurrentFileToggle = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       e.stopPropagation()
-      setSettings({
+      void setSettings({
         ...settings,
         chatOptions: {
           ...settings.chatOptions,
@@ -99,7 +99,7 @@ function CurrentFileBadge({
     [settings, setSettings],
   )
 
-  const Icon = getMentionableIcon(mentionable)
+  const Icon = MENTIONABLE_ICONS[mentionable.type]
   return mentionable.file ? (
     <BadgeBase onClick={onClick} isFocused={isFocused}>
       <div className="zncz-chat-user-input-file-badge-name">

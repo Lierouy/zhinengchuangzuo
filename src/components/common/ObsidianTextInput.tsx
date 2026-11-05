@@ -42,6 +42,9 @@ export function ObsidianTextInput({
     if (!textInput) return
     textInput.setValue(value)
     if (placeholder) textInput.setPlaceholder(placeholder)
+    // Imperative Obsidian component: writing to its DOM element is the
+    // intended API here, not a React state mutation.
+    // eslint-disable-next-line react-hooks/immutability
     if (type) textInput.inputEl.type = type
   }, [textInput, value, placeholder, type])
 

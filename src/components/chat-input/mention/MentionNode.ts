@@ -71,14 +71,16 @@ export class MentionNode extends TextNode {
   __mentionName: string
   __mentionable: SerializedMentionable
 
-  static getType(): string {
+  static override getType(): string {
     return MENTION_NODE_TYPE
   }
 
-  static clone(node: MentionNode): MentionNode {
+  static override clone(node: MentionNode): MentionNode {
     return new MentionNode(node.__mentionName, node.__mentionable, node.__key)
   }
-  static importJSON(serializedNode: SerializedMentionNode): MentionNode {
+  static override importJSON(
+    serializedNode: SerializedMentionNode,
+  ): MentionNode {
     const node = $createMentionNode(
       serializedNode.mentionName,
       serializedNode.mentionable,
@@ -101,7 +103,7 @@ export class MentionNode extends TextNode {
     this.__mentionable = mentionable
   }
 
-  exportJSON(): SerializedMentionNode {
+  override exportJSON(): SerializedMentionNode {
     return {
       ...super.exportJSON(),
       mentionName: this.__mentionName,
@@ -111,13 +113,13 @@ export class MentionNode extends TextNode {
     }
   }
 
-  createDOM(config: EditorConfig): HTMLElement {
+  override createDOM(config: EditorConfig): HTMLElement {
     const dom = super.createDOM(config)
     dom.className = `zncz-${MENTION_NODE_TYPE}`
     return dom
   }
 
-  exportDOM(editor: LexicalEditor): DOMExportOutput {
+  override exportDOM(editor: LexicalEditor): DOMExportOutput {
     // Use the editor's window to create the element so it works in pop-out windows
     const doc = editor.getRootElement()?.ownerDocument ?? document
     const element = doc.createElement('span')
@@ -134,7 +136,7 @@ export class MentionNode extends TextNode {
     return { element }
   }
 
-  static importDOM(): DOMConversionMap | null {
+  static override importDOM(): DOMConversionMap | null {
     return {
       span: (domNode: HTMLElement) => {
         if (
@@ -152,15 +154,15 @@ export class MentionNode extends TextNode {
     }
   }
 
-  isTextEntity(): true {
+  override isTextEntity(): true {
     return true
   }
 
-  canInsertTextBefore(): boolean {
+  override canInsertTextBefore(): boolean {
     return false
   }
 
-  canInsertTextAfter(): boolean {
+  override canInsertTextAfter(): boolean {
     return false
   }
 

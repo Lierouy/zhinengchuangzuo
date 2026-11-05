@@ -28,7 +28,7 @@ export class ChatView extends ItemView {
     return CHAT_VIEW_TYPE
   }
 
-  getIcon() {
+  override getIcon() {
     return 'user-round-pen'
   }
 
@@ -36,11 +36,11 @@ export class ChatView extends ItemView {
     return '助手'
   }
 
-  async onOpen() {
+  override async onOpen() {
     this.render()
   }
 
-  async onClose() {
+  override async onClose() {
     this.root?.unmount()
     this.root = null
     this.queryClient?.clear()

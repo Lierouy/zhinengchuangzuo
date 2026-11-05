@@ -58,11 +58,7 @@ export default tseslint.config(
       '@typescript-eslint/require-await': 'off',
       '@typescript-eslint/consistent-type-definitions': ['warn', 'type'],
       '@typescript-eslint/no-extraneous-class': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-call': 'off',
       '@typescript-eslint/no-useless-constructor': 'off',
-      '@typescript-eslint/no-floating-promises': 'off',
       '@typescript-eslint/no-unnecessary-condition': 'off',
       '@typescript-eslint/no-misused-promises': 'off',
       '@typescript-eslint/no-unused-vars': [
@@ -74,28 +70,14 @@ export default tseslint.config(
         },
       ],
 
-      'react/react-in-jsx-scope': 'off',
-
-      // React Compiler 规则：本项目未启用 React Compiler，
-      // 且大量使用 useEffect 桥接 Obsidian 命令式 API（ButtonComponent 等），
-      // 这些规则会产生误报，故关闭。保留 rules-of-hooks / exhaustive-deps。
+      // React Compiler 规则：本项目未启用 React Compiler。
+      // - refs 暂关：6 处都是渲染期读写 ref（chat-container-context、
+      //   useChatHistory、LexicalMenu），需要逐个人工判断后再开；
+      // 其余 recommended 规则全部启用。保留 rules-of-hooks / exhaustive-deps。
       'react-hooks/set-state-in-effect': 'off',
-      'react-hooks/static-components': 'off',
       'react-hooks/refs': 'off',
-      'react-hooks/immutability': 'off',
-      'react-hooks/purity': 'off',
-      'react-hooks/globals': 'off',
-      'react-hooks/use-memo': 'off',
-      'react-hooks/preserve-manual-memoization': 'off',
-      'react-hooks/incompatible-library': 'off',
-      'react-hooks/error-boundaries': 'off',
-      'react-hooks/set-state-in-render': 'off',
-      'react-hooks/unsupported-syntax': 'off',
-      'react-hooks/config': 'off',
-      'react-hooks/gating': 'off',
-
       'import/no-unresolved': 'off',
-
+      'react/react-in-jsx-scope': 'off',
       'sort-imports': [
         'error',
         {

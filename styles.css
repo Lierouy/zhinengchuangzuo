@@ -6,7 +6,7 @@
   left: 10px;
   right: 18px;
   top: 0;
-  z-index: 60;
+  z-index: var(--layer-cover, 5);
   background: var(--background-primary);
   border-radius: var(--radius-s);
   padding: var(--size-2-1) var(--size-2-3);
@@ -102,6 +102,7 @@
   min-height: 64px;
   max-height: 360px;
   overflow-y: auto;
+  line-height: var(--line-height-tight);
 }
 
 @media (hover: hover) {
@@ -118,10 +119,6 @@
   transition:
     box-shadow 0.15s ease-in-out,
     border 0.15s ease-in-out;
-}
-
-.obsidian-default-textarea {
-  line-height: var(--line-height-tight);
 }
 
 .zncz-settings-textarea {
@@ -148,7 +145,7 @@
   left: 10px;
   right: 18px;
   bottom: 27px;
-  z-index: 60;
+  z-index: var(--layer-cover, 5);
   display: flex;
   flex-direction: column;
   -webkit-app-region: no-drag;
@@ -321,7 +318,7 @@
 }
 
 .zncz-popover {
-  z-index: 100;
+  z-index: var(--layer-popover, 30);
   background: var(--background-primary);
   box-shadow: var(--shadow-s);
   border-radius: var(--radius-s);
@@ -338,7 +335,6 @@
 }
 
 .zncz-popover li {
-  z-index: 100;
   max-height: 80px;
   overflow-y: auto;
   background-color: var(--background-primary);
@@ -405,7 +401,7 @@
 }
 
 .zncz-popover-content {
-  z-index: 100;
+  z-index: var(--layer-popover, 30);
   background-color: var(--background-primary);
   border: 1px solid var(--background-modifier-border-hover);
   border-radius: var(--radius-s);
@@ -737,10 +733,6 @@ button.zncz-chat-input-model-select {
   }
 }
 
-.zncz-error-modal {
-  min-width: 60vw;
-}
-
 .zncz-error-modal-content {
   max-height: 50vh;
   display: flex;
@@ -848,7 +840,7 @@ button.zncz-chat-input-model-select {
     th,
     td {
       border-color: var(--text-faint);
-      font-size: calc(var(--font-ui-small));
+      font-size: var(--font-ui-small);
       overflow-wrap: break-word;
       word-break: break-word;
       padding: calc(var(--render-scale) * 0.2rem)

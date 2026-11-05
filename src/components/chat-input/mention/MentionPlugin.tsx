@@ -23,7 +23,7 @@ import {
   serializeMentionable,
 } from '../../../utils/chat/mentionable'
 import { SearchableMentionable } from '../../../utils/fuzzy-search'
-import { getMentionableIcon } from '../../chat-input/get-metionable-icon'
+import { MENTIONABLE_ICONS } from '../../chat-input/mentionable-icons'
 import { MenuOption, MenuTextMatch, PUNCTUATION } from '../LexicalMenu'
 import { LexicalTypeaheadMenuPlugin } from '../LexicalTypeaheadMenuPlugin'
 import { MENTION_TRIGGER, isOtherTriggerActive } from '../typeahead-triggers'
@@ -136,7 +136,7 @@ function MentionsTypeaheadMenuItem({
 }) {
   const className = clsx('item', isSelected && 'selected')
 
-  const Icon = getMentionableIcon(option.mentionable)
+  const Icon = MENTIONABLE_ICONS[option.mentionable.type]
   return (
     <li
       key={option.key}

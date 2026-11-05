@@ -21,7 +21,7 @@ export function HandleSection({ showRequired = false }: HandleSectionProps) {
   const [templateList, setTemplateList] = useState<TemplateMetadata[]>([])
 
   useEffect(() => {
-    templateManager.listTemplates().then(setTemplateList)
+    void templateManager.listTemplates().then(setTemplateList)
   }, [templateManager])
 
   const templateOptions = useMemo(() => {

@@ -21,7 +21,7 @@ import { MentionableBlockData } from './types/mentionable'
 import { ensureFolderExists, getMentionableBlockData } from './utils/obsidian'
 
 export default class ZhinengchuangzuoPlugin extends Plugin {
-  settings!: ZhinengchuangzuoSettings
+  override settings!: ZhinengchuangzuoSettings
   settingsChangeListeners: ((newSettings: ZhinengchuangzuoSettings) => void)[] =
     []
   handleInProgress = false
@@ -30,7 +30,7 @@ export default class ZhinengchuangzuoPlugin extends Plugin {
     return normalizePath(`${ROOT_DIR}/config.json`)
   }
 
-  async onload() {
+  override async onload() {
     await this.loadSettings()
 
     this.registerView(CHAT_VIEW_TYPE, (leaf) => new ChatView(leaf, this))
@@ -52,7 +52,7 @@ export default class ZhinengchuangzuoPlugin extends Plugin {
         editor: Editor,
         ctx: MarkdownView | MarkdownFileInfo,
       ) => {
-        this.addSelectionToChat(editor, ctx as MarkdownView)
+        void this.addSelectionToChat(editor, ctx as MarkdownView)
       },
     })
 
@@ -67,7 +67,7 @@ export default class ZhinengchuangzuoPlugin extends Plugin {
   }
 
   // Save settings in user_data folder instead of plugin root
-  async loadData(): Promise<Record<string, unknown>> {
+  override async loadData(): Promise<Record<string, unknown>> {
     const filePath = this.settingsFilePath
     try {
       if (!(await this.app.vault.adapter.exists(filePath))) {
@@ -81,7 +81,7 @@ export default class ZhinengchuangzuoPlugin extends Plugin {
     }
   }
 
-  async saveData(data: Record<string, unknown>): Promise<void> {
+  override async saveData(data: Record<string, unknown>): Promise<void> {
     const filePath = this.settingsFilePath
 
     await ensureFolderExists(this.app, filePath.split('/').slice(0, -1))

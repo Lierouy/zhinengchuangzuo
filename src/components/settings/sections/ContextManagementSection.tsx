@@ -64,7 +64,7 @@ export function ContextManagementSection({
 
   useEffect(() => {
     setIsLoading(true)
-    Promise.all([fetchGroupList(), fetchCurrentPrompts()]).finally(() =>
+    void Promise.all([fetchGroupList(), fetchCurrentPrompts()]).finally(() =>
       setIsLoading(false),
     )
   }, [fetchGroupList, fetchCurrentPrompts])

@@ -122,7 +122,7 @@ function UserMessageItem({
       }
     >
       {message.role === 'user' ? (
-        <div className="zncz-user-message-content">
+        <div>
           {/* 渲染选中的文本折叠块 */}
           {selectedBlocks.map((block, index) => (
             <SelectedBlockFold key={`block-${index}`} block={block} />
@@ -147,7 +147,7 @@ function UserMessageItem({
           })}
         </div>
       ) : (
-        <div className="zncz-assistant-message-content">
+        <div>
           {message.reasoning && (
             <AssistantMessageReasoning reasoning={message.reasoning} />
           )}

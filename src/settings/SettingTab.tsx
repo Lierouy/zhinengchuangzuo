@@ -15,7 +15,7 @@ export class ZhinengchuangzuoSettingTab extends PluginSettingTab {
     this.plugin = plugin
   }
 
-  display(): void {
+  override display(): void {
     const { containerEl } = this
     containerEl.empty()
 
@@ -35,7 +35,7 @@ export class ZhinengchuangzuoSettingTab extends PluginSettingTab {
     )
   }
 
-  hide(): void {
+  override hide(): void {
     if (this.root) {
       this.root.unmount()
       this.root = null

@@ -61,7 +61,7 @@ export function TemplateSection({ app }: TemplateSectionProps) {
         onConfirm: async () => {
           try {
             await templateManager.deleteTemplate(template.id)
-            fetchTemplateList()
+            void fetchTemplateList()
           } catch (error) {
             console.error('Failed to delete template', error)
             new Notice('Failed to delete template')
@@ -88,14 +88,14 @@ export function TemplateSection({ app }: TemplateSectionProps) {
         await templateManager.reorderTemplates(reordered.map((t) => t.id))
       } catch (error) {
         console.error('Failed to reorder templates', error)
-        fetchTemplateList()
+        void fetchTemplateList()
       }
     },
     [templateList, templateManager, fetchTemplateList],
   )
 
   useEffect(() => {
-    fetchTemplateList()
+    void fetchTemplateList()
   }, [fetchTemplateList])
 
   return (

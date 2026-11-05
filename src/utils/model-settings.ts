@@ -60,6 +60,14 @@ export function sanitizeModelSettings(
     ModelSettings
 }
 
+/** JSON.parse result, only when it is a plain object. */
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return null
+  }
+  return value as Record<string, unknown>
+}
+
 function parseCustomParameters(
   customParameters: string[],
   target: Record<string, unknown>,
@@ -70,16 +78,10 @@ function parseCustomParameters(
     try {
       let obj: Record<string, unknown> | null = null
       if (text.startsWith('{')) {
-        const parsed = JSON.parse(text)
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-          obj = parsed as Record<string, unknown>
-        }
+        obj = asRecord(JSON.parse(text))
       } else {
         try {
-          const parsed = JSON.parse(`{${text}}`)
-          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-            obj = parsed as Record<string, unknown>
-          }
+          obj = asRecord(JSON.parse(`{${text}}`))
         } catch (_) {
           /* ignore parse errors */
         }

@@ -24,7 +24,7 @@ export class ReactModal<T> extends Modal {
     this.options = options
   }
 
-  onOpen() {
+  override onOpen() {
     if (this.options?.title) this.titleEl.setText(this.options.title)
     this.root = createRoot(this.contentEl)
     this.root.render(
@@ -34,7 +34,7 @@ export class ReactModal<T> extends Modal {
     )
   }
 
-  onClose() {
+  override onClose() {
     if (this.root) {
       this.root.unmount()
       this.root = null

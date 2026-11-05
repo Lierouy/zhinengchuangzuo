@@ -80,12 +80,12 @@ function createDebouncedSave(
       return new Promise<void>((resolve, reject) => {
         pendingResolve = resolve
         pendingReject = reject
-        debounced(id, messages)
+        void debounced(id, messages)
       })
     },
     flush: () => {
       // `run` settles the pending promise itself once the write completes.
-      debounced.flush()
+      void debounced.flush()
     },
   }
 }

@@ -104,7 +104,7 @@ function PromptGroupManageModalComponent({
 
   useEffect(() => {
     let cancelled = false
-    ;(async () => {
+    void (async () => {
       try {
         const groups = await contextManager.listGroups()
         if (!cancelled) {
