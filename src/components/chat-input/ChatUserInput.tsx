@@ -50,7 +50,11 @@ export type ChatUserInputProps = {
   mentionables: Mentionable[]
   setMentionables: (mentionables: Mentionable[]) => void
   autoFocus?: boolean
-  addedBlockKey?: string | null
+  /**
+   * Asks the input to highlight a mentionable badge. Carries a sequence number
+   * so requesting the same key again still re-triggers the highlight.
+   */
+  highlightRequest?: { key: string; seq: number } | null
   isLoading?: boolean
   onAbort?: () => void
 }
@@ -65,7 +69,7 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
       mentionables,
       setMentionables,
       autoFocus = false,
-      addedBlockKey,
+      highlightRequest,
       isLoading = false,
       onAbort,
     },
@@ -89,13 +93,13 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
 
     const [displayedMentionableKey, setDisplayedMentionableKey] = useState<
       string | null
-    >(addedBlockKey ?? null)
+    >(highlightRequest?.key ?? null)
 
     useEffect(() => {
-      if (addedBlockKey) {
-        setDisplayedMentionableKey(addedBlockKey)
+      if (highlightRequest) {
+        setDisplayedMentionableKey(highlightRequest.key)
       }
-    }, [addedBlockKey])
+    }, [highlightRequest])
 
     useImperativeHandle(ref, () => ({
       focus: () => {

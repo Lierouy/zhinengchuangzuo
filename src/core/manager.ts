@@ -1,11 +1,10 @@
 import { ZhinengchuangzuoSettings } from '../settings/schema/setting.types'
 import { ChatModel } from '../types/chat-model.types'
-import { LLMProvider } from '../types/provider.types'
 
-import { AnthropicProvider } from './anthropicProvider'
-import { BaseLLMProvider } from './base'
-import { LLMModelNotFoundException } from './exception'
-import { OpenAIProvider } from './openaiProvider'
+import { createAnthropicProvider } from './anthropicProvider'
+import { LLMProviderClient } from './base'
+import { LLMException } from './exception'
+import { createOpenAIProvider } from './openaiProvider'
 
 /*
  * OpenAI-compatible provider includes token usage statistics
@@ -17,19 +16,17 @@ function getProviderClient({
 }: {
   providerId: string
   settings: ZhinengchuangzuoSettings
-}): BaseLLMProvider<LLMProvider> {
+}): LLMProviderClient {
   const provider = settings.providers.find((p) => p.id === providerId)
   if (!provider) {
     throw new Error(`Provider ${providerId} not found`)
   }
 
   switch (provider.type) {
-    case 'openai-compatible': {
-      return new OpenAIProvider(provider)
-    }
-    case 'anthropic-compatible': {
-      return new AnthropicProvider(provider)
-    }
+    case 'openai-compatible':
+      return createOpenAIProvider(provider)
+    case 'anthropic-compatible':
+      return createAnthropicProvider(provider)
   }
 }
 
@@ -40,12 +37,12 @@ export function getChatModelClient({
   modelId: string
   settings: ZhinengchuangzuoSettings
 }): {
-  providerClient: BaseLLMProvider<LLMProvider>
+  providerClient: LLMProviderClient
   model: ChatModel
 } {
   const chatModel = settings.chatModels.find((model) => model.model === modelId)
   if (!chatModel) {
-    throw new LLMModelNotFoundException(`Chat model ${modelId} not found`)
+    throw new LLMException('model-not-found', `Chat model ${modelId} not found`)
   }
 
   const providerClient = getProviderClient({

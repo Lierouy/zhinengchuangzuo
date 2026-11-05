@@ -54,7 +54,7 @@ function ConfirmModalComponent({
       onClose()
     } catch (error) {
       console.error('Confirm action failed', error)
-      new Notice('操作失败，请查看控制台日志')
+      new Notice('Operation failed, Please check the console logs')
       setIsPending(false)
     }
   }

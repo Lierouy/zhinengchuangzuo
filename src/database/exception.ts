@@ -1,48 +1,67 @@
-export class DuplicateTemplateException extends Error {
-  constructor(templateName: string) {
-    super(`Template with name "${templateName}" already exists`)
-    this.name = 'DuplicateTemplateException'
+export type DatabaseErrorCode =
+  | 'duplicate-template'
+  | 'empty-template-name'
+  | 'empty-chat-title'
+  | 'duplicate-provider'
+  | 'duplicate-chat-model'
+  | 'duplicate-prompt-group'
+  | 'duplicate-prompt-item'
+
+/**
+ * One error type for every repository-level failure; the `code` decides how
+ * the UI reacts, which keeps the exception family from growing one class per
+ * message.
+ */
+export class DatabaseException extends Error {
+  constructor(
+    public readonly code: DatabaseErrorCode,
+    message: string,
+  ) {
+    super(message)
+    this.name = 'DatabaseException'
   }
 }
 
-export class EmptyTemplateNameException extends Error {
-  constructor() {
-    super('Template name cannot be empty')
-    this.name = 'EmptyTemplateNameException'
-  }
+export function isDatabaseError(
+  error: unknown,
+  code: DatabaseErrorCode,
+): error is DatabaseException {
+  return error instanceof DatabaseException && error.code === code
 }
 
-export class EmptyChatTitleException extends Error {
-  constructor() {
-    super('Chat title cannot be empty')
-    this.name = 'EmptyChatTitleException'
-  }
-}
+/** Message-only helpers keep the call sites short. */
+export const duplicateTemplate = (name: string) =>
+  new DatabaseException(
+    'duplicate-template',
+    `Template with name "${name}" already exists`,
+  )
 
-export class DuplicateProviderException extends Error {
-  constructor(id: string) {
-    super(`Provider with ID ${id} already exists`)
-    this.name = 'DuplicateProviderException'
-  }
-}
+export const emptyTemplateName = () =>
+  new DatabaseException('empty-template-name', 'Template name cannot be empty')
 
-export class DuplicateChatModelException extends Error {
-  constructor(name: string) {
-    super(`Chat model with name ${name} already exists`)
-    this.name = 'DuplicateChatModelException'
-  }
-}
+export const emptyChatTitle = () =>
+  new DatabaseException('empty-chat-title', 'Chat title cannot be empty')
 
-export class DuplicatePromptGroupException extends Error {
-  constructor(name: string) {
-    super(`Prompt group with name ${name} already exists`)
-    this.name = 'DuplicatePromptGroupException'
-  }
-}
+export const duplicateProvider = (id: string) =>
+  new DatabaseException(
+    'duplicate-provider',
+    `Provider with ID ${id} already exists`,
+  )
 
-export class DuplicatePromptItemException extends Error {
-  constructor(name: string) {
-    super(`Prompt item with name ${name} already exists`)
-    this.name = 'DuplicatePromptItemException'
-  }
-}
+export const duplicateChatModel = (name: string) =>
+  new DatabaseException(
+    'duplicate-chat-model',
+    `Chat model with name ${name} already exists`,
+  )
+
+export const duplicatePromptGroup = (name: string) =>
+  new DatabaseException(
+    'duplicate-prompt-group',
+    `Prompt group with name ${name} already exists`,
+  )
+
+export const duplicatePromptItem = (name: string) =>
+  new DatabaseException(
+    'duplicate-prompt-item',
+    `Prompt item with name ${name} already exists`,
+  )

@@ -21,11 +21,19 @@ import { getNestedFiles, readMultipleTFiles } from '../obsidian'
 export class PromptGenerator {
   private app: App
   private settings: ZhinengchuangzuoSettings
+  private contextManager: ContextManager
   private MAX_CONTEXT_MESSAGES = 50
 
-  constructor(app: App, settings: ZhinengchuangzuoSettings) {
+  constructor(
+    app: App,
+    settings: ZhinengchuangzuoSettings,
+    contextManager?: ContextManager,
+  ) {
     this.app = app
     this.settings = settings
+    // Injectable so callers can share one manager instead of creating a new
+    // one per request.
+    this.contextManager = contextManager ?? new ContextManager(app)
   }
 
   public async generateRequestMessages({
@@ -302,8 +310,7 @@ export class PromptGenerator {
     if (!selectedPromptGroupId) return null
 
     try {
-      const contextManager = new ContextManager(this.app)
-      const group = await contextManager.findById(selectedPromptGroupId)
+      const group = await this.contextManager.findById(selectedPromptGroupId)
       if (!group) return null
 
       const prompts = group.prompts

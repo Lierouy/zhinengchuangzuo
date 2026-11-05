@@ -90,9 +90,7 @@ async function decodeImage(file: File): Promise<DecodedImage> {
         release: () => {},
       }
     } catch {
-      throw new Error(
-        `unsupported image format (${file.type || 'unknown'}), please convert it to JPEG or PNG first`,
-      )
+      throw new Error(`Unsupported image format: ${file.type || 'unknown'}`)
     }
   }
 }

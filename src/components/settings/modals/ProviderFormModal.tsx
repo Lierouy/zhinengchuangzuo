@@ -2,7 +2,7 @@ import { App, Notice } from 'obsidian'
 import { useState } from 'react'
 
 import { PROVIDER_TYPES_INFO } from '../../../constants'
-import { DuplicateProviderException } from '../../../database/exception'
+import { duplicateProvider, isDatabaseError } from '../../../database/exception'
 import ZhinengchuangzuoPlugin from '../../../main'
 import {
   LLMProvider,
@@ -99,7 +99,7 @@ function ProviderFormComponent({
             (p: LLMProvider) => p.id === formData.id,
           )
         ) {
-          throw new DuplicateProviderException(formData.id)
+          throw duplicateProvider(formData.id)
         }
 
         const validationResult = llmProviderSchema.safeParse(formData)
@@ -118,7 +118,7 @@ function ProviderFormComponent({
 
       onClose()
     } catch (error) {
-      if (error instanceof DuplicateProviderException) {
+      if (isDatabaseError(error, 'duplicate-provider')) {
         new Notice(error.message)
       } else {
         throw error

@@ -3,11 +3,11 @@ import { App, Notice } from 'obsidian'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { useSettings } from '../../../contexts/settings-context'
-import { ContextManager } from '../../../database/context/ContextManager'
 import {
   PromptGroupMetadata,
   PromptItem,
 } from '../../../database/context/types'
+import { useContextManager } from '../../../hooks/useJsonManagers'
 import ZhinengchuangzuoPlugin from '../../../main'
 import { ObsidianButton } from '../../common/ObsidianButton'
 import { ObsidianDropdown } from '../../common/ObsidianDropdown'
@@ -30,7 +30,7 @@ export function ContextManagementSection({
   showRequired = false,
 }: ContextManagementSectionProps) {
   const { settings, setSettings } = useSettings()
-  const contextManager = useMemo(() => new ContextManager(app), [app])
+  const contextManager = useContextManager()
 
   const [groupList, setGroupList] = useState<PromptGroupMetadata[]>([])
   const [currentPrompts, setCurrentPrompts] = useState<PromptItem[]>([])

@@ -4,11 +4,11 @@ import {
   MarkdownView,
   Notice,
   Plugin,
-  TFile,
   normalizePath,
 } from 'obsidian'
 
 import { ChatView } from './ChatView'
+import { handleCurrentFile } from './commands/handleCurrentFile'
 import { CHAT_VIEW_TYPE } from './constants'
 import { ROOT_DIR } from './database/constants'
 import {
@@ -24,7 +24,7 @@ export default class ZhinengchuangzuoPlugin extends Plugin {
   settings!: ZhinengchuangzuoSettings
   settingsChangeListeners: ((newSettings: ZhinengchuangzuoSettings) => void)[] =
     []
-  private handleInProgress = false
+  handleInProgress = false
 
   private get settingsFilePath(): string {
     return normalizePath(`${ROOT_DIR}/config.json`)
@@ -60,173 +60,8 @@ export default class ZhinengchuangzuoPlugin extends Plugin {
     this.addCommand({
       id: 'handle-current-file',
       name: '单独处理当前文件',
-      callback: async () => {
-        if (this.handleInProgress) return
-        this.handleInProgress = true
-
-        try {
-          // Use the workspace's active file only. If there is no active file,
-          // the user has closed or not selected a file — do not attempt to handle.
-          const file = this.app.workspace.getActiveFile()
-          if (!file) {
-            new Notice('No open files are available for handle')
-            return
-          }
-          const fileContent = await this.app.vault.cachedRead(file)
-
-          // Collect linked files referenced from this file (one-level only)
-          const MAX_LINKS = this.settings.handleMaxLinks ?? 20
-          const MAX_CHARS = this.settings.handleMaxChars ?? 300000
-
-          // Only parse Obsidian internal wiki links ([[...]]), preserve order
-          const wikiRe = /\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]/g
-
-          type Candidate = { raw: string; index: number }
-          const candidates: Candidate[] = []
-
-          let m: RegExpExecArray | null
-          while ((m = wikiRe.exec(fileContent))) {
-            candidates.push({ raw: m[1].trim(), index: m.index })
-          }
-
-          // Raw-level dedup by link text (exclude ./ prefix difference)
-          // before sorting, to avoid redundant parsing of duplicate links
-          const seenRaw = new Set<string>()
-          const uniqueCandidates: { raw: string; index: number }[] = []
-          for (const c of candidates) {
-            const key = c.raw.replace(/^\.\//, '')
-            if (!seenRaw.has(key)) {
-              seenRaw.add(key)
-              uniqueCandidates.push(c)
-            }
-          }
-
-          // Preserve appearance order
-          uniqueCandidates.sort((a, b) => a.index - b.index)
-
-          const resolvedFiles: TFile[] = []
-
-          for (const c of uniqueCandidates) {
-            if (resolvedFiles.length >= MAX_LINKS) break
-            const linkRaw = c.raw
-            const linkPath = linkRaw.replace(/^\.\//, '')
-
-            // Try Obsidian resolution relative to current file
-            const dest = this.app.metadataCache.getFirstLinkpathDest(
-              linkPath,
-              file.path,
-            )
-
-            let target: TFile | null = null
-            if (dest instanceof TFile) {
-              target = dest
-            }
-
-            if (!target) {
-              const maybe = this.app.vault.getAbstractFileByPath(linkPath)
-              if (maybe instanceof TFile) target = maybe
-              else {
-                const maybeMd = this.app.vault.getAbstractFileByPath(
-                  linkPath.endsWith('.md') ? linkPath : `${linkPath}.md`,
-                )
-                if (maybeMd instanceof TFile) target = maybeMd
-              }
-            }
-
-            if (
-              target &&
-              target.path !== file.path &&
-              target.extension === 'md'
-            ) {
-              resolvedFiles.push(target)
-            }
-          }
-
-          // Step 1: if the main file alone exceeds the character limit, abort.
-          if (fileContent.length > MAX_CHARS) {
-            new Notice(
-              'The current file content exceeds the character limit and cannot be sent',
-            )
-            return
-          }
-
-          // Step 2: read linked files one by one in order, stopping once the
-          // accumulated total would exceed MAX_CHARS.
-          const linkedContents: string[] = []
-          const includedFiles: TFile[] = []
-          const droppedFiles: TFile[] = []
-          let runningTotal = fileContent.length
-
-          for (const f of resolvedFiles) {
-            const content = await this.app.vault.cachedRead(f)
-            if (runningTotal + content.length > MAX_CHARS) {
-              droppedFiles.push(f)
-            } else {
-              linkedContents.push(content)
-              includedFiles.push(f)
-              runningTotal += content.length
-            }
-          }
-
-          if (droppedFiles.length > 0) {
-            new Notice(
-              `Some associated files have been excluded because they exceed the character limit ${MAX_CHARS}`,
-            )
-          }
-
-          // Build combined content preserving main file first and linked files in order
-          const combined = [
-            `<file type="用户正在浏览">\n<path>${file.path}</path>\n<body>\n${fileContent}\n</body>\n</file>\n`,
-            ...includedFiles.map(
-              (included, index) =>
-                `\n<file>\n<path>${included.path}</path>\n<body>\n${linkedContents[index]}\n</body>\n</file>\n`,
-            ),
-          ].join('')
-
-          const chatModel = this.settings.chatModels.find(
-            (m) => m.model === this.settings.chatModelId,
-          )
-          if (!chatModel) {
-            new Notice(
-              'Please configure the session model, select a session model in the settings',
-            )
-            return
-          }
-
-          const providerExists = this.settings.providers.some(
-            (p) => p.id === chatModel.providerId,
-          )
-          if (!providerExists) {
-            new Notice('The provider for this model is not configured')
-            return
-          }
-
-          // Ensure chat view exists and bring it to foreground (open new chat if necessary)
-          let leaves = this.app.workspace.getLeavesOfType(CHAT_VIEW_TYPE)
-          const existingLeaf =
-            leaves.length > 0 && leaves[0].view instanceof ChatView
-              ? leaves[0]
-              : null
-
-          if (!existingLeaf) {
-            await this.openChatView(true)
-            leaves = this.app.workspace.getLeavesOfType(CHAT_VIEW_TYPE)
-          } else {
-            await this.app.workspace.revealLeaf(existingLeaf)
-          }
-
-          if (leaves.length > 0 && leaves[0].view instanceof ChatView) {
-            await leaves[0].view.startHandleStream(combined)
-          }
-        } catch (e) {
-          console.error('Failed to handle file', e)
-          new Notice('Handle failed, please check console logs')
-        } finally {
-          this.handleInProgress = false
-        }
-      },
+      callback: () => handleCurrentFile(this),
     })
-
     // This adds a settings tab so the user can configure various aspects of the plugin
     this.addSettingTab(new ZhinengchuangzuoSettingTab(this.app, this))
   }

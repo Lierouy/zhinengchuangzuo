@@ -2,8 +2,8 @@ import { App } from 'obsidian'
 import { useEffect, useMemo, useState } from 'react'
 
 import { useSettings } from '../../../contexts/settings-context'
-import { TemplateManager } from '../../../database/template/TemplateManager'
 import { TemplateMetadata } from '../../../database/template/types'
+import { useTemplateManager } from '../../../hooks/useJsonManagers'
 import { ObsidianDropdown } from '../../common/ObsidianDropdown'
 import { ObsidianNumberInput } from '../../common/ObsidianNumberInput'
 import { ObsidianSetting } from '../../common/ObsidianSetting'
@@ -15,12 +15,9 @@ type HandleSectionProps = {
   showRequired?: boolean
 }
 
-export function HandleSection({
-  app,
-  showRequired = false,
-}: HandleSectionProps) {
+export function HandleSection({ showRequired = false }: HandleSectionProps) {
   const { settings, setSettings } = useSettings()
-  const templateManager = useMemo(() => new TemplateManager(app), [app])
+  const templateManager = useTemplateManager()
   const [templateList, setTemplateList] = useState<TemplateMetadata[]>([])
 
   useEffect(() => {

@@ -2,10 +2,7 @@ import { App, normalizePath } from 'obsidian'
 
 import { AbstractJsonRepository } from '../base'
 import { CONTEXT_DIR, ROOT_DIR } from '../constants'
-import {
-  DuplicatePromptGroupException,
-  DuplicatePromptItemException,
-} from '../exception'
+import { duplicatePromptGroup, duplicatePromptItem } from '../exception'
 
 import {
   CONTEXT_INDEX_SCHEMA_VERSION,
@@ -87,9 +84,7 @@ export class ContextManager extends AbstractJsonRepository<
   private async rebuildIndex(): Promise<PromptGroupIndexEntry[]> {
     const files = await this.listMetadata()
     const groups = await Promise.all(
-      files.map((item) =>
-        this.read((item as unknown as { fileName: string }).fileName),
-      ),
+      files.map((item) => this.read(item.fileName)),
     )
     const entries = groups
       .filter((group): group is PromptGroup => group !== null)
@@ -120,7 +115,7 @@ export class ContextManager extends AbstractJsonRepository<
     // 检查是否与已有组重名
     const duplicate = await this.findGroupByName(group.name)
     if (duplicate) {
-      throw new DuplicatePromptGroupException(group.name)
+      throw duplicatePromptGroup(group.name)
     }
 
     const newGroup: PromptGroup = {
@@ -162,7 +157,7 @@ export class ContextManager extends AbstractJsonRepository<
     if (updates.name && updates.name !== group.name) {
       const duplicate = await this.findGroupByName(updates.name)
       if (duplicate) {
-        throw new DuplicatePromptGroupException(updates.name)
+        throw duplicatePromptGroup(updates.name)
       }
     }
 
@@ -207,7 +202,7 @@ export class ContextManager extends AbstractJsonRepository<
     // 检查是否与同组内已有提示重名
     const duplicate = group.prompts.find((p) => p.name === item.name)
     if (duplicate) {
-      throw new DuplicatePromptItemException(item.name)
+      throw duplicatePromptItem(item.name)
     }
 
     const newItem: PromptItem = {
@@ -237,7 +232,7 @@ export class ContextManager extends AbstractJsonRepository<
         (p) => p.id !== itemId && p.name === updates.name,
       )
       if (duplicate) {
-        throw new DuplicatePromptItemException(updates.name)
+        throw duplicatePromptItem(updates.name)
       }
     }
 

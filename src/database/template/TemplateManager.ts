@@ -3,10 +3,7 @@ import { App, normalizePath } from 'obsidian'
 
 import { AbstractJsonRepository } from '../base'
 import { ROOT_DIR, TEMPLATE_DIR } from '../constants'
-import {
-  DuplicateTemplateException,
-  EmptyTemplateNameException,
-} from '../exception'
+import { duplicateTemplate, emptyTemplateName } from '../exception'
 
 import {
   TEMPLATE_INDEX_SCHEMA_VERSION,
@@ -92,9 +89,7 @@ export class TemplateManager extends AbstractJsonRepository<Template, string> {
 
     const files = await this.listMetadata()
     const loaded = await Promise.all(
-      files.map((item) =>
-        this.read((item as unknown as { fileName: string }).fileName),
-      ),
+      files.map((item) => this.read(item.fileName)),
     )
     const templates = loaded.filter(
       (template): template is Template => template !== null,
@@ -133,12 +128,12 @@ export class TemplateManager extends AbstractJsonRepository<Template, string> {
     >,
   ): Promise<Template> {
     if (template.name !== undefined && template.name.length === 0) {
-      throw new EmptyTemplateNameException()
+      throw emptyTemplateName()
     }
 
     const existingTemplate = await this.findByName(template.name)
     if (existingTemplate) {
-      throw new DuplicateTemplateException(template.name)
+      throw duplicateTemplate(template.name)
     }
 
     const newTemplate: Template = {
@@ -172,7 +167,7 @@ export class TemplateManager extends AbstractJsonRepository<Template, string> {
     >,
   ): Promise<Template | null> {
     if (updates.name !== undefined && updates.name.length === 0) {
-      throw new EmptyTemplateNameException()
+      throw emptyTemplateName()
     }
 
     const template = await this.findById(id)
@@ -181,7 +176,7 @@ export class TemplateManager extends AbstractJsonRepository<Template, string> {
     if (updates.name && updates.name !== template.name) {
       const existingTemplate = await this.findByName(updates.name)
       if (existingTemplate) {
-        throw new DuplicateTemplateException(updates.name)
+        throw duplicateTemplate(updates.name)
       }
     }
 

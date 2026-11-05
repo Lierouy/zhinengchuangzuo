@@ -1,9 +1,9 @@
 import { ArrowDown, ArrowUp, Edit, Trash } from 'lucide-react'
 import { App, Notice } from 'obsidian'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
-import { TemplateManager } from '../../../database/template/TemplateManager'
 import { TemplateMetadata } from '../../../database/template/types'
+import { useTemplateManager } from '../../../hooks/useJsonManagers'
 import { ConfirmModal } from '../../modals/ConfirmModal'
 import {
   CreateTemplateModal,
@@ -15,7 +15,7 @@ type TemplateSectionProps = {
 }
 
 export function TemplateSection({ app }: TemplateSectionProps) {
-  const templateManager = useMemo(() => new TemplateManager(app), [app])
+  const templateManager = useTemplateManager()
 
   const [templateList, setTemplateList] = useState<TemplateMetadata[]>([])
   const [isLoading, setIsLoading] = useState(false)

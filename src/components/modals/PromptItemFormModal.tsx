@@ -1,9 +1,9 @@
 import { App, Notice } from 'obsidian'
 import { useMemo, useState } from 'react'
 
-import { ContextManager } from '../../database/context/ContextManager'
 import { FilterLogic, PromptItem } from '../../database/context/types'
-import { DuplicatePromptItemException } from '../../database/exception'
+import { isDatabaseError } from '../../database/exception'
+import { useContextManager } from '../../hooks/useJsonManagers'
 import { ObsidianButton } from '../common/ObsidianButton'
 import { ObsidianDropdown } from '../common/ObsidianDropdown'
 import { ObsidianSetting } from '../common/ObsidianSetting'
@@ -54,14 +54,13 @@ export class PromptItemFormModal extends ReactModal<PromptItemFormComponentProps
 }
 
 function PromptItemFormComponent({
-  app,
   groupId,
   promptItem,
   allPrompts,
   onSubmit,
   onClose,
 }: PromptItemFormComponentProps) {
-  const contextManager = useMemo(() => new ContextManager(app), [app])
+  const contextManager = useContextManager()
 
   const [name, setName] = useState(promptItem?.name ?? '')
   const [content, setContent] = useState(promptItem?.content ?? '')
@@ -179,10 +178,10 @@ function PromptItemFormComponent({
       onSubmit?.()
       onClose()
     } catch (error) {
-      if (error instanceof DuplicatePromptItemException) {
+      if (isDatabaseError(error, 'duplicate-prompt-item')) {
         new Notice(error.message)
       } else {
-        console.error('Failed to save prompt item:', error)
+        console.error('Failed to save prompt item', error)
         new Notice('Failed to save prompt')
       }
     }

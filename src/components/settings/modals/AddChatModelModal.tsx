@@ -2,7 +2,10 @@ import { Check, Edit, Trash, X } from 'lucide-react'
 import { App, Notice } from 'obsidian'
 import { useState } from 'react'
 
-import { DuplicateChatModelException } from '../../../database/exception'
+import {
+  duplicateChatModel,
+  isDatabaseError,
+} from '../../../database/exception'
 import ZhinengchuangzuoPlugin from '../../../main'
 import { ChatModel, chatModelSchema } from '../../../types/chat-model.types'
 import { sanitizeModelSettings } from '../../../utils/model-settings'
@@ -108,7 +111,7 @@ function ChatModelFormComponent({
         : -1
 
       if (!chatModel && chatModels.some((p) => p.model === formData.model)) {
-        throw new DuplicateChatModelException(formData.model)
+        throw duplicateChatModel(formData.model)
       }
       if (chatModel && editIndex === -1) {
         new Notice(`This model has no model`)
@@ -157,7 +160,7 @@ function ChatModelFormComponent({
 
       onClose()
     } catch (error) {
-      if (error instanceof DuplicateChatModelException) {
+      if (isDatabaseError(error, 'duplicate-chat-model')) {
         new Notice(error.message)
       } else {
         throw error

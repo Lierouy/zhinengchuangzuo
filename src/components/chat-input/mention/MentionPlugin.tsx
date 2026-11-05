@@ -3,6 +3,7 @@
  * Modified from the original code
  */
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
+import { clsx } from 'clsx'
 import {
   $createParagraphNode,
   $createTextNode,
@@ -133,10 +134,7 @@ function MentionsTypeaheadMenuItem({
   onMouseEnter: () => void
   option: MentionTypeaheadOption
 }) {
-  let className = 'item'
-  if (isSelected) {
-    className += ' selected'
-  }
+  const className = clsx('item', isSelected && 'selected')
 
   const Icon = getMentionableIcon(option.mentionable)
   return (

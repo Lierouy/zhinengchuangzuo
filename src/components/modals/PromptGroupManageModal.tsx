@@ -1,11 +1,11 @@
 import { Check, Edit, Trash, X } from 'lucide-react'
 import { App, Notice } from 'obsidian'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { SettingsProvider, useSettings } from '../../contexts/settings-context'
-import { ContextManager } from '../../database/context/ContextManager'
 import { PromptGroupMetadata } from '../../database/context/types'
-import { DuplicatePromptGroupException } from '../../database/exception'
+import { isDatabaseError } from '../../database/exception'
+import { useContextManager } from '../../hooks/useJsonManagers'
 import ZhinengchuangzuoPlugin from '../../main'
 import { ObsidianButton } from '../common/ObsidianButton'
 import { ObsidianSetting } from '../common/ObsidianSetting'
@@ -76,7 +76,7 @@ function PromptGroupManageModalComponent({
   onClose,
 }: Omit<PromptGroupManageModalComponentProps, 'plugin'>) {
   const { settings, setSettings } = useSettings()
-  const contextManager = useMemo(() => new ContextManager(app), [app])
+  const contextManager = useContextManager()
 
   // Local working copy of groups — all edits happen here, not on disk
   const [groupList, setGroupList] = useState<PromptGroupMetadata[]>([])
@@ -221,7 +221,7 @@ function PromptGroupManageModalComponent({
       try {
         await contextManager.updateGroup(g.id, { name: g.name })
       } catch (error) {
-        if (error instanceof DuplicatePromptGroupException) {
+        if (isDatabaseError(error, 'duplicate-prompt-group')) {
           new Notice(error.message)
         } else {
           console.error('Failed to rename group:', error)
@@ -236,7 +236,7 @@ function PromptGroupManageModalComponent({
       try {
         await contextManager.createGroup({ name: g.name, prompts: [] })
       } catch (error) {
-        if (error instanceof DuplicatePromptGroupException) {
+        if (isDatabaseError(error, 'duplicate-prompt-group')) {
           new Notice(error.message)
         } else {
           console.error('Failed to create group:', error)

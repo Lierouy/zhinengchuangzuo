@@ -3,7 +3,7 @@ import { App, normalizePath } from 'obsidian'
 
 import { AbstractJsonRepository } from '../base'
 import { CHAT_DIR, ROOT_DIR } from '../constants'
-import { EmptyChatTitleException } from '../exception'
+import { emptyChatTitle } from '../exception'
 
 import {
   CHAT_INDEX_SCHEMA_VERSION,
@@ -101,9 +101,7 @@ export class ChatManager extends AbstractJsonRepository<
   private async rebuildIndex(): Promise<ChatIndexEntry[]> {
     const files = await this.listMetadata()
     const conversations = await Promise.all(
-      files.map((item) =>
-        this.read((item as unknown as { fileName: string }).fileName),
-      ),
+      files.map((item) => this.read(item.fileName)),
     )
     const chats = conversations
       .filter((chat): chat is ChatConversation => chat !== null)
@@ -132,7 +130,7 @@ export class ChatManager extends AbstractJsonRepository<
       initialData.title !== undefined &&
       initialData.title.trim().length === 0
     ) {
-      throw new EmptyChatTitleException()
+      throw emptyChatTitle()
     }
 
     const now = Date.now()
@@ -167,7 +165,7 @@ export class ChatManager extends AbstractJsonRepository<
     if (!chat) return null
 
     if (updates.title !== undefined && updates.title.length === 0) {
-      throw new EmptyChatTitleException()
+      throw emptyChatTitle()
     }
 
     const updatedChat: ChatConversation = {

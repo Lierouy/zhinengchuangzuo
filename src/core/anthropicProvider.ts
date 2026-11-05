@@ -19,59 +19,96 @@ import {
 import { parseImageDataUrl } from '../utils/llm/image'
 import { formatMessages } from '../utils/llm/request'
 
-import { BaseLLMProvider } from './base'
-import {
-  LLMAPIKeyInvalidException,
-  LLMAPIKeyNotSetException,
-} from './exception'
+import { LLMProviderClient } from './base'
+import { LLMException } from './exception'
 import { NoStainlessAnthropic } from './NoStainlessAnthropic'
 
-export class AnthropicProvider extends BaseLLMProvider<
-  Extract<LLMProvider, { type: 'anthropic-compatible' }>
-> {
-  private client: Anthropic
-  private apiKey: string
+type AnthropicCompatibleProvider = Extract<
+  LLMProvider,
+  { type: 'anthropic-compatible' }
+>
 
-  constructor(
-    provider: Extract<LLMProvider, { type: 'anthropic-compatible' }>,
-  ) {
-    super(provider)
+export function createAnthropicProvider(
+  provider: AnthropicCompatibleProvider,
+): LLMProviderClient {
+  const apiKey = provider.apiKey ?? ''
+  const client = new (
+    provider.additionalSettings?.noStainless ? NoStainlessAnthropic : Anthropic
+  )({
+    apiKey,
+    baseURL: provider.baseUrl
+      ? provider.baseUrl.replace(/\/+$/, '')
+      : undefined,
+    dangerouslyAllowBrowser: true,
+  })
 
-    this.client = new (
-      provider.additionalSettings?.noStainless
-        ? NoStainlessAnthropic
-        : Anthropic
-    )({
-      apiKey: provider.apiKey ?? '',
-      baseURL: provider.baseUrl
-        ? provider.baseUrl.replace(/\/+$/, '')
-        : undefined,
-      dangerouslyAllowBrowser: true,
-    })
-    this.apiKey = provider.apiKey ?? ''
+  const validateModelAndApiKey = (model: ChatModel): void => {
+    if (model.providerType !== 'anthropic-compatible') {
+      throw new Error('Model is not an Anthropic Compatible model')
+    }
+    if (!apiKey) {
+      throw new LLMException(
+        'api-key-not-set',
+        `Provider ${provider.id} API key is missing, please set it in settings menu`,
+      )
+    }
   }
 
-  async generateResponse(
+  const prepareRequestConfig = (request: LLMRequest) => {
+    const { systemContent, messages } = parseMessages(
+      formatMessages(request.messages),
+    )
+    const {
+      model: _model,
+      messages: _msgs,
+      max_tokens,
+      ...rest
+    } = request as LLMRequestNonStreaming & Record<string, unknown>
+
+    return {
+      systemContent,
+      messages,
+      // Anthropic's own API requires max_tokens, but anthropic-compatible
+      // providers often accept (and default) it. Only send it when configured
+      // so the plugin never imposes its own output cap.
+      maxTokens: max_tokens ?? request.max_tokens,
+      rest,
+      model: request.model,
+    }
+  }
+
+  const handleAnthropicError = (error: unknown): never => {
+    if (error instanceof Anthropic.APIError && error.status === 401) {
+      throw new LLMException(
+        'api-key-invalid',
+        `Provider ${provider.id} API key is invalid, please update it in settings menu`,
+        error as Error,
+      )
+    }
+    throw error
+  }
+
+  const generateResponse = async (
     model: ChatModel,
     request: LLMRequestNonStreaming,
     options?: LLMOptions,
-  ): Promise<LLMResponseNonStreaming> {
-    this.validateModelAndApiKey(model)
+  ): Promise<LLMResponseNonStreaming> => {
+    validateModelAndApiKey(model)
     const {
       systemContent,
       messages,
       maxTokens,
       rest,
       model: requestModel,
-    } = this.prepareRequestConfig(request)
+    } = prepareRequestConfig(request)
 
     try {
-      const response = await this.client.messages.create(
+      const response = await client.messages.create(
         {
           model: requestModel,
           messages,
           system: systemContent,
-          max_tokens: maxTokens,
+          ...(maxTokens === undefined ? {} : { max_tokens: maxTokens }),
           ...rest,
           stream: false,
         } as Anthropic.MessageCreateParamsNonStreaming,
@@ -81,18 +118,18 @@ export class AnthropicProvider extends BaseLLMProvider<
       )
 
       const messageId = response.id ?? crypto.randomUUID()
-      const content = response.content
+      const textContent = response.content
         .filter((block): block is Anthropic.TextBlock => block.type === 'text')
         .map((block) => block.text)
         .join('\n')
 
-      const reasoning = AnthropicProvider.extractReasoning(
+      const reasoning = extractReasoning(
         response.content,
-        this.provider.customReasoningField,
+        provider.customReasoningField,
       )
 
       const usage = response.usage as unknown as Record<string, number>
-      const promptTokens = AnthropicProvider.computePromptTokens(usage)
+      const promptTokens = computePromptTokens(usage)
 
       return {
         id: messageId,
@@ -100,7 +137,7 @@ export class AnthropicProvider extends BaseLLMProvider<
           {
             finish_reason: response.stop_reason ?? null,
             message: {
-              content,
+              content: textContent,
               reasoning,
               role: 'assistant',
             },
@@ -116,31 +153,31 @@ export class AnthropicProvider extends BaseLLMProvider<
         },
       }
     } catch (error: unknown) {
-      this.handleAnthropicError(error)
+      return handleAnthropicError(error)
     }
   }
 
-  async streamResponse(
+  const streamResponse = async (
     model: ChatModel,
     request: LLMRequestStreaming,
     options?: LLMOptions,
-  ): Promise<AsyncIterable<LLMResponseStreaming>> {
-    this.validateModelAndApiKey(model)
+  ): Promise<AsyncIterable<LLMResponseStreaming>> => {
+    validateModelAndApiKey(model)
     const {
       systemContent,
       messages,
       maxTokens,
       rest,
       model: requestModel,
-    } = this.prepareRequestConfig(request)
+    } = prepareRequestConfig(request)
 
     try {
-      const stream = await this.client.messages.create(
+      const stream = await client.messages.create(
         {
           model: requestModel,
           messages,
           system: systemContent,
-          max_tokens: maxTokens,
+          ...(maxTokens === undefined ? {} : { max_tokens: maxTokens }),
           ...rest,
           stream: true,
         } as Anthropic.MessageCreateParamsStreaming,
@@ -149,240 +186,198 @@ export class AnthropicProvider extends BaseLLMProvider<
         },
       )
 
-      return AnthropicProvider.streamResponseGenerator(
+      return streamResponseGenerator(
         stream,
         requestModel,
-        this.provider.customReasoningField,
+        provider.customReasoningField,
       )
     } catch (error: unknown) {
-      this.handleAnthropicError(error)
+      return handleAnthropicError(error)
     }
   }
 
-  private validateModelAndApiKey(model: ChatModel): void {
-    if (model.providerType !== 'anthropic-compatible') {
-      throw new Error('Model is not an Anthropic Compatible model')
-    }
-    if (!this.apiKey) {
-      throw new LLMAPIKeyNotSetException(
-        `Provider ${this.provider.id} API key is missing, please set it in settings menu`,
-      )
-    }
-  }
+  return { generateResponse, streamResponse }
+}
 
-  private prepareRequestConfig(request: LLMRequest) {
-    const { systemContent, messages } = AnthropicProvider.parseMessages(
-      formatMessages(request.messages),
-    )
-    const {
-      model: _model,
-      messages: _msgs,
-      max_tokens,
-      ...rest
-    } = request as LLMRequestNonStreaming & Record<string, unknown>
+async function* streamResponseGenerator(
+  stream: AsyncIterable<Anthropic.MessageStreamEvent>,
+  model: string,
+  customReasoningField?: string,
+): AsyncIterable<LLMResponseStreaming> {
+  const messageId = crypto.randomUUID()
+  let inputTokens = 0
+  const reasoningField = customReasoningField
+    ? customReasoningField
+    : 'thinking_delta'
 
-    return {
-      systemContent,
-      messages,
-      maxTokens: max_tokens ?? request.max_tokens ?? 4096,
-      rest,
-      model: request.model,
-    }
-  }
+  for await (const chunk of stream) {
+    if (chunk.type === 'message_start') {
+      const usage = chunk.message.usage as unknown as Record<string, number>
+      inputTokens = computePromptTokens(usage)
 
-  private handleAnthropicError(error: unknown): never {
-    if (error instanceof Anthropic.APIError && error.status === 401) {
-      throw new LLMAPIKeyInvalidException(
-        `Provider ${this.provider.id} API key is invalid, Please update it in settings menu`,
-        error as Error,
-      )
-    }
-    throw error
-  }
-
-  private static async *streamResponseGenerator(
-    stream: AsyncIterable<Anthropic.MessageStreamEvent>,
-    model: string,
-    customReasoningField?: string,
-  ): AsyncIterable<LLMResponseStreaming> {
-    const messageId = crypto.randomUUID()
-    let inputTokens = 0
-    const reasoningField = customReasoningField
-      ? customReasoningField
-      : 'thinking_delta'
-
-    for await (const chunk of stream) {
-      if (chunk.type === 'message_start') {
-        const usage = chunk.message.usage as unknown as Record<string, number>
-        inputTokens = AnthropicProvider.computePromptTokens(usage)
-
-        yield {
-          id: chunk.message.id || messageId,
-          choices: [
-            {
-              finish_reason: null,
-              delta: { role: 'assistant', content: '' },
-            },
-          ],
-          created: Date.now(),
-          model: model,
-          object: 'chat.completion.chunk',
-          usage: {
-            prompt_tokens: inputTokens,
-            completion_tokens: chunk.message.usage.output_tokens,
-            total_tokens: inputTokens + chunk.message.usage.output_tokens,
+      yield {
+        id: chunk.message.id || messageId,
+        choices: [
+          {
+            finish_reason: null,
+            delta: { role: 'assistant', content: '' },
           },
-        }
+        ],
+        created: Date.now(),
+        model,
+        object: 'chat.completion.chunk',
+        usage: {
+          prompt_tokens: inputTokens,
+          completion_tokens: chunk.message.usage.output_tokens,
+          total_tokens: inputTokens + chunk.message.usage.output_tokens,
+        },
       }
+    }
 
-      if (
-        chunk.type === 'content_block_delta' &&
-        chunk.delta.type === 'text_delta'
-      ) {
-        yield {
-          id: messageId,
-          choices: [
-            {
-              finish_reason: null,
-              delta: { content: chunk.delta.text },
-            },
-          ],
-          created: Date.now(),
-          model: model,
-          object: 'chat.completion.chunk',
-        }
-      }
-
-      if (
-        chunk.type === 'content_block_delta' &&
-        chunk.delta.type === reasoningField
-      ) {
-        const deltaAny = chunk.delta as unknown as Record<string, unknown>
-        const rawReasoning =
-          deltaAny[reasoningField.replace('_delta', '')] ??
-          deltaAny.thinking ??
-          deltaAny.thought ??
-          deltaAny.text
-        const reasoningText =
-          typeof rawReasoning === 'string' ? rawReasoning : ''
-        yield {
-          id: messageId,
-          choices: [
-            {
-              finish_reason: null,
-              delta: { reasoning: reasoningText },
-            },
-          ],
-          created: Date.now(),
-          model: model,
-          object: 'chat.completion.chunk',
-        }
-      }
-
-      if (chunk.type === 'message_delta') {
-        const outputTokens = chunk.usage?.output_tokens ?? 0
-        yield {
-          id: messageId,
-          choices: [
-            {
-              finish_reason: chunk.delta.stop_reason ?? null,
-              delta: { content: null },
-            },
-          ],
-          created: Date.now(),
-          model: model,
-          object: 'chat.completion.chunk',
-          usage: {
-            prompt_tokens: inputTokens,
-            completion_tokens: outputTokens,
-            total_tokens: inputTokens + outputTokens,
+    if (
+      chunk.type === 'content_block_delta' &&
+      chunk.delta.type === 'text_delta'
+    ) {
+      yield {
+        id: messageId,
+        choices: [
+          {
+            finish_reason: null,
+            delta: { content: chunk.delta.text },
           },
-        }
+        ],
+        created: Date.now(),
+        model,
+        object: 'chat.completion.chunk',
+      }
+    }
+
+    if (
+      chunk.type === 'content_block_delta' &&
+      chunk.delta.type === reasoningField
+    ) {
+      const deltaAny = chunk.delta as unknown as Record<string, unknown>
+      const rawReasoning =
+        deltaAny[reasoningField.replace('_delta', '')] ??
+        deltaAny.thinking ??
+        deltaAny.thought ??
+        deltaAny.text
+      const reasoningText = typeof rawReasoning === 'string' ? rawReasoning : ''
+      yield {
+        id: messageId,
+        choices: [
+          {
+            finish_reason: null,
+            delta: { reasoning: reasoningText },
+          },
+        ],
+        created: Date.now(),
+        model,
+        object: 'chat.completion.chunk',
+      }
+    }
+
+    if (chunk.type === 'message_delta') {
+      const outputTokens = chunk.usage?.output_tokens ?? 0
+      yield {
+        id: messageId,
+        choices: [
+          {
+            finish_reason: chunk.delta.stop_reason ?? null,
+            delta: { content: null },
+          },
+        ],
+        created: Date.now(),
+        model,
+        object: 'chat.completion.chunk',
+        usage: {
+          prompt_tokens: inputTokens,
+          completion_tokens: outputTokens,
+          total_tokens: inputTokens + outputTokens,
+        },
+      }
+    }
+  }
+}
+
+function extractReasoning(
+  content: Anthropic.ContentBlock[],
+  customReasoningField?: string,
+): string | undefined {
+  const reasoningField = customReasoningField ?? 'thinking'
+  const reasoningBlocks = content.filter(
+    (block) =>
+      (block as unknown as Record<string, unknown>).type === reasoningField,
+  )
+  if (reasoningBlocks.length === 0) return undefined
+  return reasoningBlocks
+    .map((block) => {
+      const rec = block as unknown as Record<string, unknown>
+      const raw = rec[reasoningField] ?? rec.text ?? rec.thought ?? rec.thinking
+      return typeof raw === 'string' ? raw : ''
+    })
+    .join('\n')
+}
+
+function computePromptTokens(usage: Record<string, number>): number {
+  return (
+    (usage.input_tokens ?? 0) +
+    (usage.cache_creation_input_tokens ?? 0) +
+    (usage.cache_read_input_tokens ?? 0)
+  )
+}
+
+function parseMessages(messages: RequestMessage[]): {
+  systemContent: string | undefined
+  messages: Anthropic.MessageParam[]
+} {
+  const anthropicMessages: Anthropic.MessageParam[] = []
+  let systemContent = ''
+
+  for (const msg of messages) {
+    if (msg.role === 'system') {
+      systemContent += msg.content + '\n'
+      continue
+    }
+
+    if (msg.role === 'user') {
+      if (Array.isArray(msg.content)) {
+        const parts: Anthropic.ContentBlockParam[] = msg.content.map((part) => {
+          if (part.type === 'text') {
+            return { type: 'text', text: part.text }
+          }
+          if (part.type === 'image_url') {
+            const { mimeType, base64Data } = parseImageDataUrl(
+              part.image_url.url,
+            )
+            return {
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: mimeType as
+                  'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+                data: base64Data,
+              },
+            }
+          }
+          return { type: 'text', text: '' }
+        })
+        anthropicMessages.push({ role: 'user', content: parts })
+      } else {
+        anthropicMessages.push({ role: 'user', content: msg.content })
+      }
+    } else if (msg.role === 'assistant') {
+      if (msg.content) {
+        anthropicMessages.push({
+          role: 'assistant',
+          content: msg.content,
+        })
       }
     }
   }
 
-  private static extractReasoning(
-    content: Anthropic.ContentBlock[],
-    customReasoningField?: string,
-  ): string | undefined {
-    const reasoningField = customReasoningField ?? 'thinking'
-    const reasoningBlocks = content.filter(
-      (block) =>
-        (block as unknown as Record<string, unknown>).type === reasoningField,
-    )
-    if (reasoningBlocks.length === 0) return undefined
-    return reasoningBlocks
-      .map((b) => {
-        const rec = b as unknown as Record<string, unknown>
-        const raw =
-          rec[reasoningField] ?? rec.text ?? rec.thought ?? rec.thinking
-        return typeof raw === 'string' ? raw : ''
-      })
-      .join('\n')
-  }
-
-  private static computePromptTokens(usage: Record<string, number>): number {
-    return (
-      (usage.input_tokens ?? 0) +
-      (usage.cache_creation_input_tokens ?? 0) +
-      (usage.cache_read_input_tokens ?? 0)
-    )
-  }
-
-  static parseMessages(messages: RequestMessage[]): {
-    systemContent: string | undefined
-    messages: Anthropic.MessageParam[]
-  } {
-    const anthropicMessages: Anthropic.MessageParam[] = []
-    let systemContent = ''
-
-    for (const msg of messages) {
-      if (msg.role === 'system') {
-        systemContent += msg.content + '\n'
-        continue
-      }
-
-      if (msg.role === 'user') {
-        if (Array.isArray(msg.content)) {
-          const parts: Anthropic.ContentBlockParam[] = msg.content.map(
-            (part) => {
-              if (part.type === 'text') {
-                return { type: 'text', text: part.text }
-              } else if (part.type === 'image_url') {
-                const { mimeType, base64Data } = parseImageDataUrl(
-                  part.image_url.url,
-                )
-                return {
-                  type: 'image',
-                  source: {
-                    type: 'base64',
-                    media_type: mimeType as
-                      'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
-                    data: base64Data,
-                  },
-                }
-              }
-              return { type: 'text', text: '' }
-            },
-          )
-          anthropicMessages.push({ role: 'user', content: parts })
-        } else {
-          anthropicMessages.push({ role: 'user', content: msg.content })
-        }
-      } else if (msg.role === 'assistant') {
-        if (msg.content) {
-          anthropicMessages.push({
-            role: 'assistant',
-            content: msg.content,
-          })
-        }
-      }
-    }
-
-    return {
-      systemContent: systemContent.trim() ? systemContent.trim() : undefined,
-      messages: anthropicMessages,
-    }
+  return {
+    systemContent: systemContent.trim() ? systemContent.trim() : undefined,
+    messages: anthropicMessages,
   }
 }

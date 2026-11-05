@@ -4,12 +4,7 @@ import { useCallback, useRef } from 'react'
 
 import { useApp } from '../../contexts/app-context'
 import { useSettings } from '../../contexts/settings-context'
-import {
-  LLMAPIKeyInvalidException,
-  LLMAPIKeyNotSetException,
-  LLMBaseUrlNotSetException,
-  LLMModelNotFoundException,
-} from '../../core/exception'
+import { isLLMError, isSettingsError } from '../../core/exception'
 import { getChatModelClient } from '../../core/manager'
 import { ChatMessage } from '../../types/chat'
 import { PromptGenerator } from '../../utils/chat/promptGenerator'
@@ -75,7 +70,7 @@ export function useChatStreamManager({
             settings,
           })
         } catch (error) {
-          if (!(error instanceof LLMModelNotFoundException)) throw error
+          if (!isLLMError(error, 'model-not-found')) throw error
           // Only repair the settings when the selection is genuinely broken.
           if (settings.chatModels.length > 0) {
             const firstChatModel = settings.chatModels[0]
@@ -141,10 +136,7 @@ export function useChatStreamManager({
       }
     },
     onError: (error) => {
-      const isSettingsError =
-        error instanceof LLMAPIKeyNotSetException ||
-        error instanceof LLMAPIKeyInvalidException ||
-        error instanceof LLMBaseUrlNotSetException
+      const settingsProblem = isSettingsError(error)
 
       const fullMessage = error.message
       const shortMessage =
@@ -153,12 +145,10 @@ export function useChatStreamManager({
       new ErrorModal(
         app,
         'Error',
-        isSettingsError ? fullMessage : shortMessage,
-        isSettingsError
-          ? (error as { rawError?: Error }).rawError?.message
-          : fullMessage,
+        settingsProblem ? fullMessage : shortMessage,
+        settingsProblem ? error.rawError?.message : fullMessage,
         {
-          showSettingsButton: isSettingsError,
+          showSettingsButton: settingsProblem,
         },
       ).open()
       console.error('Failed to generate response', error)

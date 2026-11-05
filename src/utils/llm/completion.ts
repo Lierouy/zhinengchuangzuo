@@ -1,7 +1,6 @@
-import { BaseLLMProvider } from '../../core/base'
+import { LLMProviderClient } from '../../core/base'
 import { ChatAssistantMessage } from '../../types/chat'
 import { ChatModel } from '../../types/chat-model.types'
-import { LLMProvider } from '../../types/provider.types'
 import {
   LLMRequestNonStreaming,
   LLMRequestStreaming,
@@ -17,7 +16,7 @@ const EMPTY_USAGE: ResponseUsage = {
 }
 
 export type RunCompletionParams = {
-  providerClient: BaseLLMProvider<LLMProvider>
+  providerClient: LLMProviderClient
   model: ChatModel
   /** Request built by `buildModelRequest`; `stream` decides the code path. */
   request: Record<string, unknown>

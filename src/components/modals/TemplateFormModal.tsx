@@ -1,8 +1,8 @@
 import { App, Notice } from 'obsidian'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
-import { DuplicateTemplateException } from '../../database/exception'
-import { TemplateManager } from '../../database/template/TemplateManager'
+import { isDatabaseError } from '../../database/exception'
+import { useTemplateManager } from '../../hooks/useJsonManagers'
 import { ObsidianButton } from '../common/ObsidianButton'
 import { ObsidianSetting } from '../common/ObsidianSetting'
 import { ObsidianTextArea } from '../common/ObsidianTextArea'
@@ -58,12 +58,11 @@ export class EditTemplateModal extends ReactModal<TemplateFormComponentProps> {
 }
 
 function TemplateFormComponent({
-  app,
   templateId,
   onSubmit,
   onClose,
 }: TemplateFormComponentProps) {
-  const templateManager = useMemo(() => new TemplateManager(app), [app])
+  const templateManager = useTemplateManager()
 
   const [templateName, setTemplateName] = useState('')
   const [templateContent, setTemplateContent] = useState('')
@@ -95,7 +94,7 @@ function TemplateFormComponent({
       onSubmit?.()
       onClose()
     } catch (error) {
-      if (error instanceof DuplicateTemplateException) {
+      if (isDatabaseError(error, 'duplicate-template')) {
         new Notice('A template with this name already exists')
       } else {
         console.error(error)
@@ -104,29 +103,26 @@ function TemplateFormComponent({
     }
   }
 
-  const isMountedRef = useRef(true)
-
   useEffect(() => {
-    isMountedRef.current = true
+    if (!templateId) return
 
-    async function fetchExistingTemplate(templateId: string) {
-      try {
-        const existingTemplate = await templateManager.findById(templateId)
-        if (existingTemplate && isMountedRef.current) {
-          setTemplateName(existingTemplate.name)
-          setTemplateContent(existingTemplate.content)
-        }
-      } catch (error) {
+    // React ignores state updates after unmount, so only a cancellation flag is
+    // needed to keep a slow read from overwriting newer input.
+    let cancelled = false
+    templateManager
+      .findById(templateId)
+      .then((existingTemplate) => {
+        if (cancelled || !existingTemplate) return
+        setTemplateName(existingTemplate.name)
+        setTemplateContent(existingTemplate.content)
+      })
+      .catch((error: unknown) => {
         console.error('Failed to fetch existing template:', error)
         new Notice('Failed to load template')
-      }
-    }
-    if (templateId) {
-      fetchExistingTemplate(templateId)
-    }
+      })
 
     return () => {
-      isMountedRef.current = false
+      cancelled = true
     }
   }, [templateId, templateManager])
 

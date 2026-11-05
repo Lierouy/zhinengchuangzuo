@@ -1,5 +1,4 @@
 import { ChatModel } from '../types/chat-model.types'
-import { LLMProvider } from '../types/provider.types'
 import {
   LLMOptions,
   LLMRequestNonStreaming,
@@ -10,20 +9,22 @@ import {
   LLMResponseStreaming,
 } from '../types/response'
 
-// TODO: do these really have to be class? why not just function?
-export abstract class BaseLLMProvider<P extends LLMProvider> {
-  protected readonly provider: P
-  constructor(provider: P) {
-    this.provider = provider
-  }
-
-  abstract generateResponse(
+/**
+ * What every provider must be able to do.
+ *
+ * This is a plain object type rather than an abstract class: the two
+ * implementations share no code, so inheritance only added ceremony. Each
+ * provider module exposes a `createXxxProvider(provider)` factory that returns
+ * this shape.
+ */
+export type LLMProviderClient = {
+  generateResponse(
     model: ChatModel,
     request: LLMRequestNonStreaming,
     options?: LLMOptions,
   ): Promise<LLMResponseNonStreaming>
 
-  abstract streamResponse(
+  streamResponse(
     model: ChatModel,
     request: LLMRequestStreaming,
     options?: LLMOptions,

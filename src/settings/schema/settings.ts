@@ -46,10 +46,10 @@ export function parseZhinengchuangzuoSettings(
     const migratedData = migrateSettings(data as Record<string, unknown>)
     return zhinengchuangzuoSettingsSchema.parse(migratedData)
   } catch (error) {
-    console.warn('Invalid settings provided, using defaults:', error)
+    console.warn('Invalid settings provided, using defaults', error)
     if (rawVersion !== undefined && rawVersion !== SETTINGS_SCHEMA_VERSION) {
       console.warn(
-        `Settings version ${JSON.stringify(rawVersion)} could not be migrated to ${SETTINGS_SCHEMA_VERSION}; falling back to defaults.`,
+        `Settings version could not be migrated to ${SETTINGS_SCHEMA_VERSION}, back to defaults`,
       )
     }
     return zhinengchuangzuoSettingsSchema.parse({})
