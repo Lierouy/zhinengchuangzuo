@@ -175,10 +175,13 @@ export default class ZhinengchuangzuoPlugin extends Plugin {
           }
 
           // Build combined content preserving main file first and linked files in order
-          let combined = `<file type="用户正在浏览">\n<path>${file.path}</path>\n<body>\n${fileContent}\n</body>\n</file>\n`
-          for (let i = 0; i < includedFiles.length; i++) {
-            combined += `\n<file>\n<path>${includedFiles[i].path}</path>\n<body>\n${linkedContents[i]}\n</body>\n</file>\n`
-          }
+          const combined = [
+            `<file type="用户正在浏览">\n<path>${file.path}</path>\n<body>\n${fileContent}\n</body>\n</file>\n`,
+            ...includedFiles.map(
+              (included, index) =>
+                `\n<file>\n<path>${included.path}</path>\n<body>\n${linkedContents[index]}\n</body>\n</file>\n`,
+            ),
+          ].join('')
 
           const chatModel = this.settings.chatModels.find(
             (m) => m.model === this.settings.chatModelId,

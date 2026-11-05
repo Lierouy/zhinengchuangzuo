@@ -1,6 +1,6 @@
 ﻿import { UseMutationResult, useMutation } from '@tanstack/react-query'
 import { Notice } from 'obsidian'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef } from 'react'
 
 import { useApp } from '../../contexts/app-context'
 import { useSettings } from '../../contexts/settings-context'
@@ -60,59 +60,43 @@ export function useChatStreamManager({
     }
   }, [])
 
-  const [clientState, setClientState] = useState<{
-    providerClient:
-      ReturnType<typeof getChatModelClient>['providerClient'] | null
-    model: ReturnType<typeof getChatModelClient>['model'] | null
-  }>({ providerClient: null, model: null })
-
-  useEffect(() => {
-    try {
-      if (settings.chatModels.length === 0) {
-        setClientState({ providerClient: null, model: null })
-        return
-      }
-      const result = getChatModelClient({
-        modelId: settings.chatModelId,
-        settings,
-      })
-      setClientState({
-        providerClient: result.providerClient,
-        model: result.model,
-      })
-    } catch (error) {
-      if (error instanceof LLMModelNotFoundException) {
-        if (settings.chatModels.length === 0) {
-          setClientState({ providerClient: null, model: null })
-          return
-        }
-        // Fallback to the first chat model if the selected chat model is not found
-        const firstChatModel = settings.chatModels[0]
-        setSettings({
-          ...settings,
-          chatModelId: firstChatModel.model,
-          chatModels: settings.chatModels.map((m) =>
-            m.model === firstChatModel.model ? { ...m, enable: true } : m,
-          ),
-        })
-        // settings update will re-trigger this effect
-        return
-      }
-      setClientState({ providerClient: null, model: null })
-    }
-  }, [settings, setSettings])
-
-  const { providerClient, model } = clientState
-
   const submitChatMutation = useMutation({
     mutationFn: async ({ chatMessages }: { chatMessages: ChatMessage[] }) => {
       const lastMessage = chatMessages.at(-1)
       if (!lastMessage) return
 
-      if (!providerClient || !model) {
+      // Resolved per request instead of being mirrored into state: the client
+      // is only needed here, and the old derive-in-an-effect version cost an
+      // extra render every time settings changed.
+      const resolveClient = () => {
+        try {
+          return getChatModelClient({
+            modelId: settings.chatModelId,
+            settings,
+          })
+        } catch (error) {
+          if (!(error instanceof LLMModelNotFoundException)) throw error
+          // Only repair the settings when the selection is genuinely broken.
+          if (settings.chatModels.length > 0) {
+            const firstChatModel = settings.chatModels[0]
+            setSettings({
+              ...settings,
+              chatModelId: firstChatModel.model,
+              chatModels: settings.chatModels.map((m) =>
+                m.model === firstChatModel.model ? { ...m, enable: true } : m,
+              ),
+            })
+          }
+          return null
+        }
+      }
+
+      const client = resolveClient()
+      if (!client) {
         new Notice('Please add a model in settings first')
         return
       }
+      const { providerClient, model } = client
 
       abortActiveStreams()
       const abortController = new AbortController()

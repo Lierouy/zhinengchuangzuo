@@ -4,6 +4,9 @@ import { memo, useEffect, useRef } from 'react'
 import { useApp } from '../../contexts/app-context'
 import { useChatView } from '../../contexts/chat-view-context'
 
+/** Streaming updates arrive per token; the DOM is rebuilt at most this often. */
+const RENDER_THROTTLE_MS = 350
+
 type ObsidianMarkdownProps = {
   content: string
   scale?: 'xs' | 'sm' | 'base'
@@ -26,35 +29,83 @@ const ObsidianMarkdown = memo(function ObsidianMarkdown({
   // the current source path through a ref instead of capturing it.
   const sourcePathRef = useRef('')
 
+  // Read by the render loop so a throttled render always uses the newest text.
+  const latestContentRef = useRef(content)
+  latestContentRef.current = content
+
+  const scheduleRef = useRef<() => void>(() => {})
+
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
 
-    // Streaming updates re-render on every token; a slower earlier render must
-    // never overwrite a newer one.
     let cancelled = false
-    const sourcePath = app.workspace.getActiveFile()?.path ?? ''
-    sourcePathRef.current = sourcePath
+    let rendering = false
+    let dirty = false
+    let timer: number | null = null
+    let lastRenderAt = 0
 
-    const renderMarkdown = async () => {
-      container.innerHTML = ''
-      await MarkdownRenderer.render(
-        app,
-        content,
-        container,
-        sourcePath,
-        chatView,
-      )
-      if (cancelled) return
-      setupMarkdownLinks(app, container, sourcePathRef)
+    const renderOnce = async () => {
+      if (rendering) {
+        dirty = true
+        return
+      }
+      rendering = true
+      dirty = false
+      try {
+        // Re-reading on every render keeps internal links pointing at the
+        // file that is active now, not the one active at mount time.
+        const sourcePath = app.workspace.getActiveFile()?.path ?? ''
+        sourcePathRef.current = sourcePath
+        container.innerHTML = ''
+        await MarkdownRenderer.render(
+          app,
+          latestContentRef.current,
+          container,
+          sourcePath,
+          chatView,
+        )
+        if (cancelled) return
+        setupMarkdownLinks(app, container, sourcePathRef)
+      } catch (error) {
+        console.error('Failed to render markdown', error)
+      } finally {
+        rendering = false
+        // Content changed while rendering: schedule the next pass without
+        // breaking the throttle window.
+        if (!cancelled && dirty) scheduleRef.current()
+      }
     }
 
-    void renderMarkdown()
+    const schedule = () => {
+      if (timer !== null) return
+      const wait = Math.max(
+        0,
+        RENDER_THROTTLE_MS - (performance.now() - lastRenderAt),
+      )
+      timer = window.setTimeout(() => {
+        timer = null
+        lastRenderAt = performance.now()
+        void renderOnce()
+      }, wait)
+    }
+
+    scheduleRef.current = schedule
+    schedule()
 
     return () => {
       cancelled = true
+      if (timer !== null) {
+        window.clearTimeout(timer)
+        timer = null
+      }
+      scheduleRef.current = () => {}
     }
-  }, [app, content, chatView])
+  }, [app, chatView])
+
+  useEffect(() => {
+    scheduleRef.current()
+  }, [content])
 
   return (
     <div

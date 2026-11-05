@@ -1,14 +1,41 @@
-import { App } from 'obsidian'
+import isEqual from 'lodash.isequal'
+import { App, normalizePath } from 'obsidian'
 
 import { AbstractJsonRepository } from '../base'
 import { CHAT_DIR, ROOT_DIR } from '../constants'
 import { EmptyChatTitleException } from '../exception'
 
 import {
+  CHAT_INDEX_SCHEMA_VERSION,
   CHAT_SCHEMA_VERSION,
   ChatConversation,
   ChatConversationMetadata,
+  ChatIndexEntry,
 } from './types'
+
+const CHAT_INDEX_FILE = '_index.json'
+
+type ChatIndexFile = {
+  schemaVersion: number
+  chats: ChatIndexEntry[]
+}
+
+const toIndexEntry = (chat: ChatConversation): ChatIndexEntry => ({
+  id: chat.id,
+  title: chat.title,
+  createdAt: chat.createdAt,
+  updatedAt: chat.updatedAt,
+})
+
+export const toChatMetadata = (
+  chat: ChatConversation,
+): ChatConversationMetadata => ({
+  id: chat.id,
+  title: chat.title,
+  createdAt: chat.createdAt,
+  updatedAt: chat.updatedAt,
+  schemaVersion: chat.schemaVersion,
+})
 
 export class ChatManager extends AbstractJsonRepository<
   ChatConversation,
@@ -22,7 +49,7 @@ export class ChatManager extends AbstractJsonRepository<
     // only schema version and ID in filename
     // All metadata (title, updatedAt) is stored inside the JSON file
     // No more parsing issues from filename regardless of what title contains
-    return `v${chat.schemaVersion}_${chat.id}.json`
+    return `v${CHAT_SCHEMA_VERSION}_${chat.id}.json`
   }
 
   protected parseFileName(fileName: string): string | null {
@@ -33,6 +60,69 @@ export class ChatManager extends AbstractJsonRepository<
     if (!match) return null
 
     return match[1] // just return the id
+  }
+
+  /**
+   * The index card is derived data: it can always be rebuilt from the
+   * conversation files, so a missing or corrupt card is never fatal.
+   */
+  private indexFilePath(): string {
+    return normalizePath(`${this.dataDir}/${CHAT_INDEX_FILE}`)
+  }
+
+  private async readIndex(): Promise<ChatIndexEntry[]> {
+    try {
+      const raw = await this.app.vault.adapter.read(this.indexFilePath())
+      const parsed = JSON.parse(raw) as Partial<ChatIndexFile>
+      if (
+        parsed.schemaVersion === CHAT_INDEX_SCHEMA_VERSION &&
+        Array.isArray(parsed.chats)
+      ) {
+        return parsed.chats
+      }
+    } catch {
+      // Missing or unreadable card - fall through and rebuild it.
+    }
+    return this.rebuildIndex()
+  }
+
+  private async writeIndex(chats: ChatIndexEntry[]): Promise<void> {
+    await this.ensureDirectory()
+    const card: ChatIndexFile = {
+      schemaVersion: CHAT_INDEX_SCHEMA_VERSION,
+      chats,
+    }
+    await this.app.vault.adapter.write(
+      this.indexFilePath(),
+      JSON.stringify(card, null, 2),
+    )
+  }
+
+  private async rebuildIndex(): Promise<ChatIndexEntry[]> {
+    const files = await this.listMetadata()
+    const conversations = await Promise.all(
+      files.map((item) =>
+        this.read((item as unknown as { fileName: string }).fileName),
+      ),
+    )
+    const chats = conversations
+      .filter((chat): chat is ChatConversation => chat !== null)
+      .map(toIndexEntry)
+    await this.writeIndex(chats)
+    return chats
+  }
+
+  private async upsertIndexEntry(chat: ChatConversation): Promise<void> {
+    const chats = await this.readIndex()
+    const entry = toIndexEntry(chat)
+    await this.writeIndex([entry, ...chats.filter((c) => c.id !== entry.id)])
+  }
+
+  private async removeIndexEntry(id: string): Promise<void> {
+    const chats = await this.readIndex()
+    const remaining = chats.filter((c) => c.id !== id)
+    if (remaining.length === chats.length) return
+    await this.writeIndex(remaining)
   }
 
   public async createChat(
@@ -57,6 +147,7 @@ export class ChatManager extends AbstractJsonRepository<
     }
 
     await this.create(newChat)
+    await this.upsertIndexEntry(newChat)
     return newChat
   }
 
@@ -86,6 +177,29 @@ export class ChatManager extends AbstractJsonRepository<
     }
 
     await this.update(chat, updatedChat)
+    await this.upsertIndexEntry(updatedChat)
+    return updatedChat
+  }
+
+  /**
+   * Message-only save: reads the conversation once, compares, and writes.
+   * Returns the stored conversation (unchanged if nothing differed).
+   */
+  public async updateMessages(
+    id: string,
+    messages: ChatConversation['messages'],
+  ): Promise<ChatConversation | null> {
+    const chat = await this.findById(id)
+    if (!chat) return null
+    if (isEqual(chat.messages, messages)) return chat
+
+    const updatedChat: ChatConversation = {
+      ...chat,
+      messages,
+      updatedAt: Date.now(),
+    }
+    await this.update(chat, updatedChat)
+    await this.upsertIndexEntry(updatedChat)
     return updatedChat
   }
 
@@ -97,30 +211,14 @@ export class ChatManager extends AbstractJsonRepository<
     if (!exists) return false
 
     await this.delete(fileName)
+    await this.removeIndexEntry(id)
     return true
   }
 
   public async listChats(): Promise<ChatConversationMetadata[]> {
-    // Now we need to read every JSON file to get the actual metadata
-    // because we don't store title and updatedAt in filename anymore
-    // This is still fast enough for a reasonable number of chats
-    const files = await this.listMetadata()
-    const metadataPromises = files.map(async (item) => {
-      // item = id (string) & { fileName: string } from base class
-      const fileName = (item as unknown as { fileName: string }).fileName
-      const conversation = await this.read(fileName)
-      if (!conversation) return null
-      return {
-        id: conversation.id,
-        schemaVersion: conversation.schemaVersion,
-        title: conversation.title,
-        createdAt: conversation.createdAt,
-        updatedAt: conversation.updatedAt,
-      }
-    })
-    const metadataList = (await Promise.all(metadataPromises)).filter(
-      (m): m is ChatConversationMetadata => m !== null,
-    )
-    return metadataList.sort((a, b) => b.updatedAt - a.updatedAt)
+    const chats = await this.readIndex()
+    return chats
+      .map((chat) => ({ ...chat, schemaVersion: CHAT_SCHEMA_VERSION }))
+      .sort((a, b) => b.updatedAt - a.updatedAt)
   }
 }

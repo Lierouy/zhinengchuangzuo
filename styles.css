@@ -849,6 +849,8 @@ button.zncz-chat-input-model-select {
     td {
       border-color: var(--text-faint);
       font-size: calc(var(--font-ui-small));
+      overflow-wrap: break-word;
+      word-break: break-word;
       padding: calc(var(--render-scale) * 0.2rem)
         calc(var(--render-scale) * 0.4rem);
     }

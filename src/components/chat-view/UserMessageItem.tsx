@@ -1,5 +1,5 @@
 import { Check, CopyIcon, FileInput, Trash } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useApp } from '../../contexts/app-context'
 import { ChatAssistantMessage, ChatUserMessage } from '../../types/chat'
@@ -18,7 +18,7 @@ export type UserMessageItemProps = {
   isLoading?: boolean
 }
 
-export default function UserMessageItem({
+function UserMessageItem({
   message,
   onDelete,
   isLoading,
@@ -197,3 +197,10 @@ export default function UserMessageItem({
     </div>
   )
 }
+
+/**
+ * Finished messages never change, so streaming re-renders of the surrounding
+ * view skip them entirely: `message` keeps its identity and the delete handler
+ * is stable, leaving only `isLoading` to flip when a response starts or ends.
+ */
+export default memo(UserMessageItem)

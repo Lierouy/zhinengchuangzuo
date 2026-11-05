@@ -1,4 +1,4 @@
-import { App } from 'obsidian'
+import { App, normalizePath } from 'obsidian'
 
 import { AbstractJsonRepository } from '../base'
 import { CONTEXT_DIR, ROOT_DIR } from '../constants'
@@ -8,11 +8,25 @@ import {
 } from '../exception'
 
 import {
+  CONTEXT_INDEX_SCHEMA_VERSION,
   CONTEXT_SCHEMA_VERSION,
   PromptGroup,
+  PromptGroupIndexEntry,
   PromptGroupMetadata,
   PromptItem,
 } from './types'
+
+const CONTEXT_INDEX_FILE = '_index.json'
+
+type ContextIndexFile = {
+  schemaVersion: number
+  groups: PromptGroupIndexEntry[]
+}
+
+const toIndexEntry = (group: PromptGroup): PromptGroupIndexEntry => ({
+  id: group.id,
+  name: group.name,
+})
 
 export class ContextManager extends AbstractJsonRepository<
   PromptGroup,
@@ -31,6 +45,70 @@ export class ContextManager extends AbstractJsonRepository<
     const match = fileName.match(regex)
     if (!match) return null
     return match[1]
+  }
+
+  /**
+   * The index card holds only id + name, so duplicate-name checks and group
+   * listings never have to read prompt bodies. It is derived data and can be
+   * rebuilt from the group files at any time.
+   */
+  private indexFilePath(): string {
+    return normalizePath(`${this.dataDir}/${CONTEXT_INDEX_FILE}`)
+  }
+
+  private async readIndex(): Promise<PromptGroupIndexEntry[]> {
+    try {
+      const raw = await this.app.vault.adapter.read(this.indexFilePath())
+      const parsed = JSON.parse(raw) as Partial<ContextIndexFile>
+      if (
+        parsed.schemaVersion === CONTEXT_INDEX_SCHEMA_VERSION &&
+        Array.isArray(parsed.groups)
+      ) {
+        return parsed.groups
+      }
+    } catch {
+      // Missing or unreadable card - fall through and rebuild it.
+    }
+    return this.rebuildIndex()
+  }
+
+  private async writeIndex(groups: PromptGroupIndexEntry[]): Promise<void> {
+    await this.ensureDirectory()
+    const card: ContextIndexFile = {
+      schemaVersion: CONTEXT_INDEX_SCHEMA_VERSION,
+      groups,
+    }
+    await this.app.vault.adapter.write(
+      this.indexFilePath(),
+      JSON.stringify(card, null, 2),
+    )
+  }
+
+  private async rebuildIndex(): Promise<PromptGroupIndexEntry[]> {
+    const files = await this.listMetadata()
+    const groups = await Promise.all(
+      files.map((item) =>
+        this.read((item as unknown as { fileName: string }).fileName),
+      ),
+    )
+    const entries = groups
+      .filter((group): group is PromptGroup => group !== null)
+      .map(toIndexEntry)
+    await this.writeIndex(entries)
+    return entries
+  }
+
+  private async upsertIndexEntry(group: PromptGroup): Promise<void> {
+    const groups = await this.readIndex()
+    const entry = toIndexEntry(group)
+    await this.writeIndex([entry, ...groups.filter((g) => g.id !== entry.id)])
+  }
+
+  private async removeIndexEntry(id: string): Promise<void> {
+    const groups = await this.readIndex()
+    const remaining = groups.filter((group) => group.id !== id)
+    if (remaining.length === groups.length) return
+    await this.writeIndex(remaining)
   }
 
   public async createGroup(
@@ -54,6 +132,7 @@ export class ContextManager extends AbstractJsonRepository<
     }
 
     await this.create(newGroup)
+    await this.upsertIndexEntry(newGroup)
     return newGroup
   }
 
@@ -63,8 +142,9 @@ export class ContextManager extends AbstractJsonRepository<
   }
 
   public async findGroupByName(name: string): Promise<PromptGroup | null> {
-    const groups = await this.listGroups()
-    const target = groups.find((meta) => meta.name === name)
+    // Only the index card is read here; the matched group is loaded on demand.
+    const groups = await this.readIndex()
+    const target = groups.find((group) => group.name === name)
     if (!target) return null
     return this.findById(target.id)
   }
@@ -93,6 +173,7 @@ export class ContextManager extends AbstractJsonRepository<
     }
 
     await this.update(group, updatedGroup)
+    await this.upsertIndexEntry(updatedGroup)
     return updatedGroup
   }
 
@@ -104,24 +185,16 @@ export class ContextManager extends AbstractJsonRepository<
     if (!exists) return false
 
     await this.delete(fileName)
+    await this.removeIndexEntry(id)
     return true
   }
 
   public async listGroups(): Promise<PromptGroupMetadata[]> {
-    const files = await this.listMetadata()
-    const metadataPromises = files.map(async (item) => {
-      const fileName = (item as unknown as { fileName: string }).fileName
-      const group = await this.read(fileName)
-      if (!group) return null
-      return {
-        id: group.id,
-        name: group.name,
-        schemaVersion: group.schemaVersion,
-      }
-    })
-    return (await Promise.all(metadataPromises)).filter(
-      (m): m is PromptGroupMetadata => m !== null,
-    )
+    const groups = await this.readIndex()
+    return groups.map((group) => ({
+      ...group,
+      schemaVersion: CONTEXT_SCHEMA_VERSION,
+    }))
   }
 
   public async addPromptItem(

@@ -7,7 +7,7 @@ import {
   LexicalEditor,
   TextNode,
 } from 'lexical'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import { Template } from '../../database/template/types'
@@ -19,6 +19,8 @@ import {
   useBasicTypeaheadTriggerMatch,
 } from './LexicalTypeaheadMenuPlugin'
 import { TEMPLATE_TRIGGER, isOtherTriggerActive } from './typeahead-triggers'
+
+const TEMPLATE_SEARCH_DEBOUNCE_MS = 150
 
 class TemplateTypeaheadOption extends MenuOption {
   name: string
@@ -71,24 +73,46 @@ export default function TemplatePlugin() {
   // Monotonic request id: a slow earlier search must never overwrite the
   // results of a newer query.
   const searchRequestIdRef = useRef(0)
+  const searchTimerRef = useRef<number | null>(null)
 
-  // Always do a fresh search immediately when query changes
-  // This guarantees we always get the latest templates
+  const cancelPendingSearch = useCallback(() => {
+    if (searchTimerRef.current !== null) {
+      window.clearTimeout(searchTimerRef.current)
+      searchTimerRef.current = null
+    }
+    // Also invalidate a search that is already running.
+    searchRequestIdRef.current++
+  }, [])
+
+  // Wait for typing to settle before searching, so fast input never queues up
+  // one lookup per keystroke.
   const handleQueryChange = useCallback(
-    async (newQuery: string | null) => {
-      const requestId = ++searchRequestIdRef.current
+    (newQuery: string | null) => {
+      cancelPendingSearch()
 
       if (newQuery == null) {
         setSearchResults([])
         return
       }
 
-      const results = await templateManager.searchTemplates(newQuery)
-      if (requestId !== searchRequestIdRef.current) return
-      setSearchResults(results)
+      const requestId = searchRequestIdRef.current
+      searchTimerRef.current = window.setTimeout(() => {
+        searchTimerRef.current = null
+        templateManager
+          .searchTemplates(newQuery)
+          .then((results) => {
+            if (requestId !== searchRequestIdRef.current) return
+            setSearchResults(results)
+          })
+          .catch((error: unknown) => {
+            console.error('Failed to search templates', error)
+          })
+      }, TEMPLATE_SEARCH_DEBOUNCE_MS)
     },
-    [templateManager],
+    [cancelPendingSearch, templateManager],
   )
+
+  useEffect(() => cancelPendingSearch, [cancelPendingSearch])
 
   const options = useMemo(
     () =>

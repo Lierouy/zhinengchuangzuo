@@ -174,3 +174,157 @@ export function interceptTagContent(
   ).trim()
   return { content: newContent, reasoning: newReasoning }
 }
+
+const MAX_TAG_NAME_LENGTH = 15
+const TAG_NAME_CHAR = /[a-zA-Z0-9_-]/
+
+type PrefixDecision =
+  | { kind: 'pending' }
+  | { kind: 'plain' }
+  | { kind: 'tag'; name: string; headerLength: number }
+
+/**
+ * Decides what the leading whitespace + `<name>` header of the response is.
+ * `pending` means more characters are needed before the header can be judged
+ * (the header may be split across stream chunks).
+ */
+function classifyPrefix(buffer: string): PrefixDecision {
+  const start = buffer.search(/\S/)
+  if (start === -1) return { kind: 'pending' }
+  if (buffer[start] !== '<') return { kind: 'plain' }
+
+  for (let i = start + 1; i < buffer.length; i++) {
+    const char = buffer[i]
+    if (char === '>') {
+      const name = buffer.slice(start + 1, i)
+      if (name.length === 0 || name.length > MAX_TAG_NAME_LENGTH) {
+        return { kind: 'plain' }
+      }
+      return { kind: 'tag', name, headerLength: i + 1 }
+    }
+    if (!TAG_NAME_CHAR.test(char)) return { kind: 'plain' }
+    if (i - start - 1 > MAX_TAG_NAME_LENGTH) return { kind: 'plain' }
+  }
+  return { kind: 'pending' }
+}
+
+/**
+ * Splits `buffer` into the part that is safe to consume and a trailing slice
+ * that may be the beginning of `closingTag` continued in the next chunk.
+ */
+function splitPartialClosingTag(
+  buffer: string,
+  closingTag: string,
+): [complete: string, tail: string] {
+  const maxKeep = Math.min(closingTag.length - 1, buffer.length)
+  for (let keep = maxKeep; keep > 0; keep--) {
+    const tail = buffer.slice(buffer.length - keep)
+    if (closingTag.startsWith(tail)) {
+      return [buffer.slice(0, buffer.length - keep), tail]
+    }
+  }
+  return [buffer, '']
+}
+
+export type TagInterceptState = {
+  /**
+   * Feeds one stream delta and returns the full visible content / reasoning.
+   * Each chunk costs O(delta) instead of rescanning the whole response.
+   */
+  push: (
+    contentDelta: string,
+    reasoningDelta?: string,
+  ) => {
+    content: string
+    reasoning: string
+  }
+  /**
+   * Releases the small tail held back to detect a closing tag split across
+   * chunks. Call once when the stream ends.
+   */
+  flush: () => { content: string; reasoning: string }
+}
+
+/**
+ * Streaming counterpart of {@link interceptTagContent}. The tag header is
+ * classified once; afterwards only the newly arrived delta is scanned.
+ */
+export function createTagInterceptor(): TagInterceptState {
+  let state: 'checking' | 'plain' | 'inside' | 'closed' = 'checking'
+  let pending = ''
+  let closingTag = ''
+  let tail = ''
+  let content = ''
+  let thought = ''
+  let modelReasoning = ''
+
+  const consumeInside = (chunk: string) => {
+    if (!chunk) return
+    const buffer = tail + chunk
+    const closeIndex = buffer.indexOf(closingTag)
+    if (closeIndex !== -1) {
+      thought += buffer.slice(0, closeIndex)
+      content += buffer.slice(closeIndex + closingTag.length)
+      tail = ''
+      state = 'closed'
+      return
+    }
+    const [complete, rest] = splitPartialClosingTag(buffer, closingTag)
+    thought += complete
+    tail = rest
+  }
+
+  const snapshot = () => ({
+    content: state === 'checking' ? pending : content,
+    reasoning: thought
+      ? (modelReasoning ? `${modelReasoning}\n${thought}` : thought).trim()
+      : modelReasoning,
+  })
+
+  return {
+    push(contentDelta, reasoningDelta = '') {
+      modelReasoning += reasoningDelta
+
+      if (state === 'closed' || state === 'plain') {
+        content += contentDelta
+        return snapshot()
+      }
+
+      if (state === 'inside') {
+        consumeInside(contentDelta)
+        return snapshot()
+      }
+
+      pending += contentDelta
+      const decision = classifyPrefix(pending)
+      if (decision.kind === 'pending') return snapshot()
+
+      if (
+        decision.kind === 'plain' ||
+        COMMON_HTML_TAGS.has(decision.name.toLowerCase())
+      ) {
+        content = pending
+        pending = ''
+        state = 'plain'
+        return snapshot()
+      }
+
+      const rest = pending.slice(decision.headerLength)
+      pending = ''
+      closingTag = `</${decision.name}>`
+      thought = ''
+      tail = ''
+      state = 'inside'
+      consumeInside(rest)
+      return snapshot()
+    },
+
+    flush() {
+      if (state === 'inside' && tail) {
+        thought += tail
+        tail = ''
+      }
+      return snapshot()
+    },
+  }
+}

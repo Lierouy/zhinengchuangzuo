@@ -4,49 +4,57 @@ import {
   Klass,
   LexicalNode,
   SerializedEditorState,
-  SerializedRootNode,
 } from 'lexical'
 
-/**
- * 精简序列化后的 Lexical 节点，只保留重建编辑器所需的结构属性
- * （type / children / text / indent）。detail、mode、style、format 等样式字段不保存。
- */
+const PRESERVED_KEYS = new Set(['type', 'children', 'text', 'indent'])
+
 function cleanupLexicalNode(node: unknown): unknown {
   if (node === null || typeof node !== 'object') {
     return node
   }
 
   if (Array.isArray(node)) {
-    return node.map(cleanupLexicalNode)
+    for (const child of node) {
+      cleanupLexicalNode(child)
+    }
+    return node
   }
 
-  if ('type' in node && node.type === 'linebreak') {
-    return { type: 'linebreak' }
+  const record = node as Record<string, unknown>
+
+  if (record.type === 'linebreak') {
+    for (const key of Object.keys(record)) {
+      if (key !== 'type') Reflect.deleteProperty(record, key)
+    }
+    return record
   }
 
-  const cleaned: Record<string, unknown> = {}
-  if ('type' in node) {
-    cleaned.type = node.type
+  for (const key of Object.keys(record)) {
+    if (key === 'indent') {
+      if (record.indent === 0) delete record.indent
+      continue
+    }
+    if (!PRESERVED_KEYS.has(key)) Reflect.deleteProperty(record, key)
   }
-  if ('children' in node) {
-    cleaned.children = cleanupLexicalNode(node.children)
+  if ('children' in record) {
+    cleanupLexicalNode(record.children)
   }
-  if ('text' in node && typeof node.text === 'string') {
-    cleaned.text = node.text
-  }
-  if ('indent' in node && node.indent !== 0) {
-    cleaned.indent = node.indent
-  }
-  return cleaned
+  return record
 }
 
+/**
+ * 精简序列化后的 Lexical 节点，只保留重建编辑器所需的结构属性
+ * （type / children / text / indent）。detail、mode、style、format 等样式字段不保存。
+ *
+ * 就地删除字段而不是克隆成新树：调用方传入的必须是本进程独占的对象
+ * （`editorState.toJSON()` 的结果或刚从磁盘解析出来的消息），
+ * 因此原地修改是安全的，同时省掉了一整棵树的分配。
+ */
 export function cleanupEditorState(
   state: SerializedEditorState,
 ): SerializedEditorState {
-  return {
-    ...state,
-    root: cleanupLexicalNode(state.root) as SerializedRootNode,
-  }
+  cleanupLexicalNode(state.root)
+  return state
 }
 
 /**

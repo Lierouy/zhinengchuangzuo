@@ -1,4 +1,11 @@
 export const CONTEXT_SCHEMA_VERSION = 1
+export const CONTEXT_INDEX_SCHEMA_VERSION = 1
+
+/** One entry of the context index card; never contains prompt bodies. */
+export type PromptGroupIndexEntry = {
+  id: string
+  name: string
+}
 
 export type FilterLogic = 'AND_ANY' | 'AND_ALL' | 'NOT_ALL' | 'NOT_ANY'
 

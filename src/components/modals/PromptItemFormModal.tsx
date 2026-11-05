@@ -88,30 +88,35 @@ function PromptItemFormComponent({
     const options: Record<string, string> = { '': '(无)' }
     if (!allPrompts) return options
 
-    // 收集所有会形成循环的提示 ID
+    // 先把“谁指向谁”列成一张反向表（一遍即可）
+    const referrers = new Map<string, string[]>()
+    for (const prompt of allPrompts) {
+      const target = prompt.chainActivation
+      if (!target) continue
+      const list = referrers.get(target)
+      if (list) {
+        list.push(prompt.id)
+      } else {
+        referrers.set(target, [prompt.id])
+      }
+    }
+
+    const selfId = promptItem?.id
+
+    // 从自己往回找：所有能走到自己的提示都不能选，否则会形成 A→B→A
     const cyclicIds = new Set<string>()
-    if (promptItem) {
-      // 如果其他提示引用了当前提示，选择它会导致 A→B→A 循环
-      const selfId = promptItem.id
-      for (const p of allPrompts) {
-        if (p.id === selfId) continue
-        // B 引用了 A（当前），那当前提示就不能引用 B
-        const visited = new Set<string>()
-        let current: string | undefined = p.id
-        while (current && !visited.has(current)) {
-          visited.add(current)
-          const target = allPrompts.find((x) => x.id === current)
-          if (target?.chainActivation === selfId) {
-            cyclicIds.add(p.id)
-            break
-          }
-          current = target?.chainActivation ?? undefined
-        }
+    if (selfId) {
+      const stack = [...(referrers.get(selfId) ?? [])]
+      while (stack.length > 0) {
+        const id = stack.pop() as string
+        if (id === selfId || cyclicIds.has(id)) continue
+        cyclicIds.add(id)
+        stack.push(...(referrers.get(id) ?? []))
       }
     }
 
     for (const p of allPrompts) {
-      if (promptItem && p.id === promptItem.id) continue
+      if (selfId && p.id === selfId) continue
       if (cyclicIds.has(p.id)) continue
       // 排除始终激活或被禁用的提示
       if (!p.conditionalActivation || !p.enabled) continue

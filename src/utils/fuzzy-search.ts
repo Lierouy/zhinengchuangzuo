@@ -1,4 +1,8 @@
-import { go as fuzzysortGo } from 'fuzzysort'
+import {
+  SnapshotKeys,
+  go as fuzzysortGo,
+  snapshot as fuzzysortSnapshot,
+} from 'fuzzysort'
 import { App, TFile, TFolder } from 'obsidian'
 
 import { MentionableFile, MentionableFolder } from '../types/mentionable'
@@ -25,6 +29,116 @@ type FolderWithMetadata = {
 }
 
 type SearchItem = FolderWithMetadata | FileWithMetadata
+
+const MS_PER_DAY = 1000 * 60 * 60 * 24
+const VAULT_INVALIDATE_DEBOUNCE_MS = 200
+const EMPTY_QUERY_LIMIT = 15
+
+/**
+ * The vault rarely changes, so the metadata list and the prepared fuzzysort
+ * snapshot are built once and reused for every keystroke. They are dropped
+ * only when the active file changes (distances are relative to it) or when
+ * files are created, deleted or renamed.
+ */
+type SearchIndex = {
+  currentFilePath: string | null
+  items: SearchItem[]
+  snapshot: SnapshotKeys<SearchItem>
+}
+
+let searchIndex: SearchIndex | null = null
+let invalidateTimer: ReturnType<typeof setTimeout> | null = null
+let listeningApp: App | null = null
+
+function scheduleIndexInvalidation(): void {
+  if (invalidateTimer !== null) {
+    clearTimeout(invalidateTimer)
+  }
+  invalidateTimer = setTimeout(() => {
+    invalidateTimer = null
+    searchIndex = null
+  }, VAULT_INVALIDATE_DEBOUNCE_MS)
+}
+
+function ensureVaultListeners(app: App): void {
+  if (listeningApp === app) return
+  listeningApp = app
+  // Bursts of changes (e.g. a folder rename) collapse into one rebuild.
+  app.vault.on('create', scheduleIndexInvalidation)
+  app.vault.on('delete', scheduleIndexInvalidation)
+  app.vault.on('rename', scheduleIndexInvalidation)
+}
+
+/**
+ * Distance is a property of the target's directory, not of the individual
+ * file, so it is computed once per directory instead of once per vault item.
+ */
+function createDirectoryDistanceResolver(
+  currentFile: TFile | null,
+): (item: TFile | TFolder) => number | null {
+  const cache = new Map<string, number | null>()
+
+  return (item) => {
+    if (!currentFile) return null
+    const separator = item.path.lastIndexOf('/')
+    const dir = separator === -1 ? '' : item.path.slice(0, separator)
+    const cached = cache.get(dir)
+    if (cached !== undefined) return cached
+
+    const distance = calculateFileDistance(currentFile, item)
+    cache.set(dir, distance)
+    return distance
+  }
+}
+
+function buildIndex(app: App): SearchIndex {
+  const currentFile = app.workspace.getActiveFile()
+  const resolveDistance = createDirectoryDistanceResolver(currentFile)
+  const now = Date.now()
+
+  const items: SearchItem[] = []
+  for (const file of app.vault.getFiles()) {
+    if (file.extension !== 'md') continue
+    items.push({
+      type: 'file',
+      path: file.path,
+      name: file.name,
+      file,
+      // The active file itself is never "nearby".
+      distance:
+        currentFile && currentFile.path !== file.path
+          ? resolveDistance(file)
+          : null,
+      daysSinceLastModified: (now - file.stat.mtime) / MS_PER_DAY,
+    })
+  }
+
+  for (const folder of app.vault.getAllFolders()) {
+    items.push({
+      type: 'folder',
+      path: folder.path,
+      name: folder.name,
+      folder,
+      distance: resolveDistance(folder),
+    })
+  }
+
+  return {
+    currentFilePath: currentFile?.path ?? null,
+    items,
+    snapshot: fuzzysortSnapshot(items, { keys: ['path', 'name'] }),
+  }
+}
+
+function getIndex(app: App): SearchIndex {
+  ensureVaultListeners(app)
+  const currentFilePath = app.workspace.getActiveFile()?.path ?? null
+  if (searchIndex && searchIndex.currentFilePath === currentFilePath) {
+    return searchIndex
+  }
+  searchIndex = buildIndex(app)
+  return searchIndex
+}
 
 function scoreFnWithBoost({
   searchItem,
@@ -92,7 +206,7 @@ function getEmptyQueryResult(
     })
     const scoreB = scoreFnWithBoost({
       searchItem: b,
-      pathScore: 0.5,
+      pathScore: 0.5, // Use 0.5 as a base score
       nameScore: 0.5,
     })
     return scoreB - scoreA // Sort in descending order
@@ -105,49 +219,16 @@ function getEmptyQueryResult(
 }
 
 export function fuzzySearch(app: App, query: string): SearchableMentionable[] {
-  const currentFile = app.workspace.getActiveFile()
-
-  const allSupportedFiles = app.vault.getFiles().filter((file) => {
-    const extension = file.extension
-    return extension === 'md'
-  })
-
-  const allFilesWithMetadata: SearchItem[] = allSupportedFiles.map((file) => ({
-    type: 'file',
-    path: file.path,
-    name: file.name,
-    file,
-    distance: currentFile
-      ? currentFile === file
-        ? null
-        : calculateFileDistance(currentFile, file)
-      : null,
-    daysSinceLastModified:
-      (Date.now() - file.stat.mtime) / (1000 * 60 * 60 * 24),
-  }))
-
-  const allFolders = app.vault.getAllFolders()
-  const allFoldersWithMetadata: SearchItem[] = allFolders.map((folder) => ({
-    type: 'folder',
-    path: folder.path,
-    name: folder.name,
-    folder,
-    distance: currentFile ? calculateFileDistance(currentFile, folder) : null,
-  }))
-
-  const searchItems: SearchItem[] = [
-    ...allFilesWithMetadata,
-    ...allFoldersWithMetadata,
-  ]
+  const index = getIndex(app)
 
   if (!query) {
-    return getEmptyQueryResult(searchItems, 15)
+    // Copy first: the empty-query sort must not reorder the cached index.
+    return getEmptyQueryResult([...index.items], EMPTY_QUERY_LIMIT)
   }
 
-  const results = fuzzysortGo(query, searchItems, {
-    keys: ['path', 'name'],
+  const results = fuzzysortGo(query, index.snapshot, {
     threshold: 0.3,
-    limit: 15,
+    limit: EMPTY_QUERY_LIMIT,
     scoreFn: (result) =>
       scoreFnWithBoost({
         searchItem: result.obj,

@@ -15,7 +15,7 @@ import {
   MentionableImage,
   SerializedMentionable,
 } from '../../types/mentionable'
-import { $findNodesOfType, cleanupEditorState } from '../../utils/chat/lexical'
+import { $findNodesOfType } from '../../utils/chat/lexical'
 import {
   deserializeMentionable,
   getMentionableKey,
@@ -106,7 +106,7 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
     const handleMentionNodeMutation = useCallback(
       (mutations: NodeMutations<MentionNode>) => {
         const currentMentionables = mentionablesRef.current
-        const destroyedMentionableKeys: string[] = []
+        const destroyedMentionableKeys = new Set<string>()
         const addedMentionables: SerializedMentionable[] = []
         mutations.forEach((mutation) => {
           const mentionable = mutation.node.getMentionable()
@@ -122,7 +122,7 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
 
             if (!nodeWithSameMentionable) {
               // remove mentionable only if it's not present in the editor state
-              destroyedMentionableKeys.push(mentionableKey)
+              destroyedMentionableKeys.add(mentionableKey)
             }
           } else if (mutation.mutation === 'created') {
             if (
@@ -146,7 +146,7 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
           currentMentionables
             .filter(
               (m) =>
-                !destroyedMentionableKeys.includes(
+                !destroyedMentionableKeys.has(
                   getMentionableKey(serializeMentionable(m)),
                 ),
             )
@@ -253,9 +253,10 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
     const handleSubmit = () => {
       const state = editorRef.current?.getEditorState()?.toJSON()
       if (!state) return
-      const content = cleanupEditorState(state)
+      // No cleanup here: the editor already reports a trimmed state through
+      // `onChange`, and the save path trims again before persisting.
       // Errors are surfaced by the caller; avoid an unhandled rejection here.
-      void Promise.resolve(onSubmit(content)).catch((error: unknown) => {
+      void Promise.resolve(onSubmit(state)).catch((error: unknown) => {
         console.error('Failed to submit message', error)
       })
     }

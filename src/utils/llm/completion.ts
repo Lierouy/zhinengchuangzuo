@@ -8,7 +8,7 @@ import {
 } from '../../types/request'
 import { ResponseUsage } from '../../types/response'
 
-import { interceptTagContent } from './reasoning'
+import { createTagInterceptor, interceptTagContent } from './reasoning'
 
 const EMPTY_USAGE: ResponseUsage = {
   prompt_tokens: 0,
@@ -81,8 +81,7 @@ async function runStreamingCompletion({
   })
 
   let assistantMessage: ChatAssistantMessage | null = null
-  let rawContentBuffer = ''
-  let accumulatedReasoning = ''
+  const interceptor = createTagInterceptor()
 
   for await (const chunk of responseStream) {
     if (signal.aborted) break
@@ -99,12 +98,9 @@ async function runStreamingCompletion({
       }
     }
 
-    rawContentBuffer += chunk.choices[0]?.delta?.content ?? ''
-    accumulatedReasoning += chunk.choices[0]?.delta?.reasoning ?? ''
-
-    const intercepted = interceptTagContent(
-      rawContentBuffer,
-      accumulatedReasoning,
+    const intercepted = interceptor.push(
+      chunk.choices[0]?.delta?.content ?? '',
+      chunk.choices[0]?.delta?.reasoning ?? '',
     )
 
     const currentUsage: ResponseUsage =
@@ -126,6 +122,21 @@ async function runStreamingCompletion({
     }
 
     onUpdate(assistantMessage)
+    onScroll?.()
+  }
+
+  // Release any closing-tag tail held back during streaming.
+  const final = interceptor.flush()
+  if (
+    assistantMessage &&
+    (final.content !== assistantMessage.content ||
+      final.reasoning !== (assistantMessage.reasoning ?? ''))
+  ) {
+    onUpdate({
+      ...assistantMessage,
+      content: final.content,
+      reasoning: final.reasoning || undefined,
+    })
     onScroll?.()
   }
 }

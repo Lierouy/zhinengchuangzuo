@@ -81,6 +81,8 @@ export type ChatRef = {
   startHandleStream: (fileContent: string) => Promise<void>
 }
 
+const PAGE_SIZE = 50
+
 const Chat = forwardRef<ChatRef>((_props, ref) => {
   const app = useApp()
   const plugin = usePlugin()
@@ -90,6 +92,7 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
 
   const {
     createOrUpdateConversation,
+    saveNow,
     deleteConversation,
     getChatMessagesById,
     updateConversationTitle,
@@ -132,7 +135,6 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
   )
   const [externalStreamActive, setExternalStreamActive] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
-  const PAGE_SIZE = 50
 
   const groupedChatMessages: (ChatUserMessage | ChatAssistantMessageGroup)[] =
     useMemo(() => {
@@ -153,6 +155,19 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
 
   const chatUserInputRefs = useRef<Map<string, ChatUserInputRef>>(new Map())
   const chatMessagesRef = useRef<HTMLDivElement>(null)
+
+  // Stable across keystrokes: an inline arrow would make React detach and
+  // reattach the ref on every render, churning the Map.
+  const inputRefCallback = useMemo(
+    () => (ref: ChatUserInputRef | null) => {
+      if (ref) {
+        chatUserInputRefs.current.set(inputMessage.id, ref)
+      } else {
+        chatUserInputRefs.current.delete(inputMessage.id)
+      }
+    },
+    [inputMessage.id],
+  )
 
   // Mounted flag to avoid state updates after unmount
   const isMounted = useRef(true)
@@ -326,17 +341,6 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
     ],
   )
 
-  const registerChatUserInputRef = (
-    id: string,
-    ref: ChatUserInputRef | null,
-  ) => {
-    if (ref) {
-      chatUserInputRefs.current.set(id, ref)
-    } else {
-      chatUserInputRefs.current.delete(id)
-    }
-  }
-
   const handleLoadConversation = useCallback(
     async (conversationId: string) => {
       try {
@@ -476,9 +480,28 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
     }
   }, [chatList, handleLoadConversation])
 
+  // While a response is streaming, `chatMessages` changes on every token.
+  // Serialising and comparing the whole conversation that often is pure
+  // waste, so the save waits until the stream finishes.
+  const latestConversationRef = useRef({
+    conversationId: currentConversationId,
+    messages: chatMessages,
+  })
+  latestConversationRef.current = {
+    conversationId: currentConversationId,
+    messages: chatMessages,
+  }
+  const pendingStreamingSaveRef = useRef(false)
+
   useEffect(() => {
     if (chatMessages.length === 0) return
 
+    if (isBusy) {
+      pendingStreamingSaveRef.current = true
+      return
+    }
+
+    pendingStreamingSaveRef.current = false
     let cancelled = false
     createOrUpdateConversation(currentConversationId, chatMessages).catch(
       (error) => {
@@ -491,7 +514,22 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
     return () => {
       cancelled = true
     }
-  }, [currentConversationId, chatMessages, createOrUpdateConversation])
+  }, [currentConversationId, chatMessages, createOrUpdateConversation, isBusy])
+
+  // Closing the view mid-stream would otherwise drop the deferred save, so
+  // force one final write. Reads the latest state through a ref because the
+  // cleanup closure is from the first render.
+  useEffect(() => {
+    return () => {
+      if (!pendingStreamingSaveRef.current) return
+      pendingStreamingSaveRef.current = false
+      const { conversationId, messages } = latestConversationRef.current
+      if (messages.length === 0) return
+      saveNow(conversationId, messages).catch((error: unknown) => {
+        console.error('Failed to save chat history', error)
+      })
+    }
+  }, [saveNow])
 
   // Updates the currentFile of the focused message (input or chat history)
   // This happens when active file changes or focused message changes
@@ -784,7 +822,7 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
         </div>
         <ChatUserInput
           key={inputMessage.id} // this is needed to clear the editor when the user submits a new message
-          ref={(ref) => registerChatUserInputRef(inputMessage.id, ref)}
+          ref={inputRefCallback}
           initialSerializedEditorState={inputMessage.content}
           onChange={(content) => {
             setInputMessage((prevInputMessage) => ({

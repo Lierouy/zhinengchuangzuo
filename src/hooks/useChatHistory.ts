@@ -1,10 +1,10 @@
 import debounce from 'lodash.debounce'
-import isEqual from 'lodash.isequal'
 import { App } from 'obsidian'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { editorStateToPlainText } from '../components/chat-input/editor-state-to-plain-text'
 import { useApp } from '../contexts/app-context'
+import { toChatMetadata } from '../database/chat/ChatManager'
 import { ChatConversationMetadata } from '../database/chat/types'
 import { ChatMessage, SerializedChatMessage } from '../types/chat'
 import { Mentionable } from '../types/mentionable'
@@ -26,6 +26,8 @@ type UseChatHistory = {
     id: string,
     messages: ChatMessage[],
   ) => Promise<void>
+  /** Immediate save, bypassing the debounce. Used when the view is closing. */
+  saveNow: (id: string, messages: ChatMessage[]) => Promise<void>
   deleteConversation: (id: string) => Promise<void>
   getChatMessagesById: (id: string) => Promise<ChatMessage[] | null>
   updateConversationTitle: (id: string, title: string) => Promise<void>
@@ -93,9 +95,18 @@ export function useChatHistory(): UseChatHistory {
   const chatManager = useChatManager()
   const [chatList, setChatList] = useState<ChatConversationMetadata[]>([])
 
+  // Keeps the dropdown in sync without rescanning the chat directory: the
+  // manager returns the conversation it just wrote, which is all we need.
+  const upsertChatList = useCallback((chat: ChatConversationMetadata) => {
+    setChatList((prev) =>
+      [chat, ...prev.filter((item) => item.id !== chat.id)].sort(
+        (a, b) => b.updatedAt - a.updatedAt,
+      ),
+    )
+  }, [])
+
   const fetchChatList = useCallback(async () => {
-    const list = await chatManager.listChats()
-    setChatList(list)
+    setChatList(await chatManager.listChats())
   }, [chatManager])
 
   useEffect(() => {
@@ -106,30 +117,26 @@ export function useChatHistory(): UseChatHistory {
   const saveConversation = useCallback(
     async (id: string, messages: ChatMessage[]): Promise<void> => {
       const serializedMessages = messages.map(serializeChatMessage)
-      const existingConversation = await chatManager.findById(id)
 
-      if (existingConversation) {
-        if (isEqual(existingConversation.messages, serializedMessages)) {
-          return
-        }
-        await chatManager.updateChat(existingConversation.id, {
-          messages: serializedMessages,
-        })
-      } else {
-        const firstUserMessage = messages.find((v) => v.role === 'user')
-
-        await chatManager.createChat({
-          id,
-          title: firstUserMessage?.content
-            ? editorStateToPlainText(firstUserMessage.content).substring(0, 50)
-            : 'New chat',
-          messages: serializedMessages,
-        })
+      // Single read: the manager compares against what is on disk and only
+      // writes when something actually changed.
+      const updated = await chatManager.updateMessages(id, serializedMessages)
+      if (updated) {
+        upsertChatList(toChatMetadata(updated))
+        return
       }
 
-      await fetchChatList()
+      const firstUserMessage = messages.find((v) => v.role === 'user')
+      const created = await chatManager.createChat({
+        id,
+        title: firstUserMessage?.content
+          ? editorStateToPlainText(firstUserMessage.content).substring(0, 50)
+          : 'New chat',
+        messages: serializedMessages,
+      })
+      upsertChatList(toChatMetadata(created))
     },
-    [chatManager, fetchChatList],
+    [chatManager, upsertChatList],
   )
 
   // Keep the debounced instance in a ref so it survives re-renders and can be
@@ -157,12 +164,18 @@ export function useChatHistory(): UseChatHistory {
     [debouncedSave],
   )
 
+  const saveNow = useCallback(
+    (id: string, messages: ChatMessage[]): Promise<void> =>
+      saveConversationRef.current(id, messages),
+    [],
+  )
+
   const deleteConversation = useCallback(
     async (id: string): Promise<void> => {
-      await chatManager.deleteChat(id)
-      await fetchChatList()
+      if (!(await chatManager.deleteChat(id))) return
+      setChatList((prev) => prev.filter((chat) => chat.id !== id))
     },
-    [chatManager, fetchChatList],
+    [chatManager],
   )
 
   const getChatMessagesById = useCallback(
@@ -183,20 +196,18 @@ export function useChatHistory(): UseChatHistory {
       if (title.length === 0) {
         throw new Error('Chat title cannot be empty')
       }
-      const conversation = await chatManager.findById(id)
-      if (!conversation) {
+      const updated = await chatManager.updateChat(id, { title })
+      if (!updated) {
         throw new Error('Conversation not found')
       }
-      await chatManager.updateChat(conversation.id, {
-        title,
-      })
-      await fetchChatList()
+      upsertChatList(toChatMetadata(updated))
     },
-    [chatManager, fetchChatList],
+    [chatManager, upsertChatList],
   )
 
   return {
     createOrUpdateConversation,
+    saveNow,
     deleteConversation,
     getChatMessagesById,
     updateConversationTitle,
@@ -243,7 +254,7 @@ const deserializeChatMessage = (
           .filter((m): m is Mentionable => m !== null),
       }
     }
-    case 'assistant':
+    case 'assistant': {
       return {
         role: 'assistant',
         content: message.content,
@@ -251,5 +262,6 @@ const deserializeChatMessage = (
         id: message.id,
         metadata: message.metadata,
       }
+    }
   }
 }
