@@ -7,11 +7,11 @@ const PAGE_SIZE = 50
 /**
  * A page change swaps the whole message list, and the markdown of the new page
  * is rendered asynchronously, so the page is still growing when the DOM update
- * is done. The first delay scrolls as soon as the new page is on screen, the
+ * The first delay scrolls as soon as the new page is on screen, the
  * second one catches the content that rendered in the meantime.
  */
 const FIRST_SCROLL_DELAY_MS = 100
-const SECOND_SCROLL_DELAY_MS = 350
+const SECOND_SCROLL_DELAY_MS = 500
 
 export type GroupedChatMessage = ChatUserMessage | ChatAssistantMessageGroup
 

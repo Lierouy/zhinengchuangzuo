@@ -277,7 +277,7 @@ export function createTagInterceptor(): TagInterceptState {
   const snapshot = () => ({
     content: state === 'checking' ? pending : content,
     reasoning: thought
-      ? (modelReasoning ? `${modelReasoning}\n${thought}` : thought).trim()
+      ? (modelReasoning ? `${modelReasoning}${thought}` : thought).trim()
       : modelReasoning,
   })
 

@@ -191,7 +191,7 @@ function ProviderFormComponent({
 
       <ObsidianSetting
         name="模型思考字段"
-        desc="如果会话中无法展示思考过程，可以浏览供应商官方文档查找并填写思考字段，留空使用默认字段。"
+        desc="如果模型无法展示思考内容，可以浏览供应商文档查找并填写思考字段，留空使用默认字段。"
       >
         <div style={{ marginTop: '8px' }}></div>
         <ObsidianTextInput
