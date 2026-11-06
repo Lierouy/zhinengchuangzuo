@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef } from 'react'
 
 /** How long a programmatic scroll may keep producing events we own. */
 const PROGRAMMATIC_SCROLL_SETTLE_MS = 500
-const SCROLL_AWAY_FROM_BOTTOM_THRESHOLD = 50
+const SCROLL_AWAY_FROM_BOTTOM_THRESHOLD = 40
 /** Upward movement smaller than this is treated as layout jitter, not a scroll. */
-const USER_SCROLL_UP_DELTA = 20
+const USER_SCROLL_UP_DELTA = 10
 
 type UseAutoScrollProps = {
   scrollContainerRef: React.RefObject<HTMLElement | null>

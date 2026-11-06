@@ -33,7 +33,7 @@ export class ChatView extends ItemView {
   }
 
   getDisplayText() {
-    return '助手'
+    return '助手会话'
   }
 
   override async onOpen() {

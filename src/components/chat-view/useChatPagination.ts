@@ -10,7 +10,7 @@ const PAGE_SIZE = 50
  * is done. The first delay scrolls as soon as the new page is on screen, the
  * second one catches the content that rendered in the meantime.
  */
-const FIRST_SCROLL_DELAY_MS = 50
+const FIRST_SCROLL_DELAY_MS = 100
 const SECOND_SCROLL_DELAY_MS = 350
 
 export type GroupedChatMessage = ChatUserMessage | ChatAssistantMessageGroup
