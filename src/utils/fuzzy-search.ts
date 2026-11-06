@@ -246,11 +246,13 @@ function searchItemToMentionable(item: SearchItem): SearchableMentionable {
       return {
         type: 'file',
         file: item.file,
+        path: item.path,
       }
     case 'folder':
       return {
         type: 'folder',
         folder: item.folder,
+        path: item.path,
       }
   }
 }

@@ -1,12 +1,20 @@
 import { TFile, TFolder } from 'obsidian'
 
+/**
+ * `path` is the stable identity of a mentionable: a file that was renamed,
+ * moved or deleted resolves to `null` while its path is kept, so history
+ * prompts can still tell the model that the target is gone instead of silently
+ * dropping it.
+ */
 export type MentionableFile = {
   type: 'file'
-  file: TFile
+  file: TFile | null
+  path: string
 }
 export type MentionableFolder = {
   type: 'folder'
-  folder: TFolder
+  folder: TFolder | null
+  path: string
 }
 export type MentionableCurrentFile = {
   type: 'current-file'
@@ -15,11 +23,17 @@ export type MentionableCurrentFile = {
 export type MentionableBlockData = {
   content: string
   file: TFile
+  path: string
   startLine: number
   endLine: number
 }
-export type MentionableBlock = MentionableBlockData & {
+export type MentionableBlock = {
   type: 'block'
+  content: string
+  file: TFile | null
+  path: string
+  startLine: number
+  endLine: number
 }
 export type MentionableImage = {
   type: 'image'

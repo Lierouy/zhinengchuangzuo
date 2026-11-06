@@ -9,12 +9,7 @@ import {
   ChatMessage,
   ChatUserMessage,
 } from '../../types/chat'
-import {
-  MentionableBlock,
-  MentionableFile,
-  MentionableFolder,
-  MentionableImage,
-} from '../../types/mentionable'
+import { MentionableBlock, MentionableImage } from '../../types/mentionable'
 import { ContentPart, RequestMessage } from '../../types/request'
 import { getNestedFiles, readMultipleTFiles } from '../obsidian'
 
@@ -189,14 +184,27 @@ export class PromptGenerator {
         seenFiles?.add(currentFile.path)
       }
 
-      const files = message.mentionables
-        .filter((m): m is MentionableFile => m.type === 'file')
-        .map((m) => m.file)
-      const folders = message.mentionables
-        .filter((m): m is MentionableFolder => m.type === 'folder')
-        .map((m) => m.folder)
-      const nestedFiles = folders.flatMap((folder) => getNestedFiles(folder))
-      const allFiles = [...files, ...nestedFiles]
+      // Mentions whose target was renamed, moved or deleted keep their path so
+      // the model can be told the content is unavailable, instead of silently
+      // receiving less than the user originally attached.
+      const missingFilePaths: string[] = []
+      const missingFolderPaths: string[] = []
+      const allFiles: TFile[] = []
+      for (const mentionable of message.mentionables) {
+        if (mentionable.type === 'file') {
+          if (mentionable.file) {
+            allFiles.push(mentionable.file)
+          } else {
+            missingFilePaths.push(mentionable.path)
+          }
+        } else if (mentionable.type === 'folder') {
+          if (mentionable.folder) {
+            allFiles.push(...getNestedFiles(mentionable.folder))
+          } else {
+            missingFolderPaths.push(mentionable.path)
+          }
+        }
+      }
 
       // Step 1.2: Intra-message dedup by path (first occurrence wins)
       const dedupedFiles: TFile[] = []
@@ -229,6 +237,32 @@ export class PromptGenerator {
         seenFiles?.add(f.path)
       }
 
+      // Step 1.5: Missing targets. File resolution is path-based, so every
+      // mention of the same path resolves identically within a request: a
+      // missing mention can never collide with one that was read successfully.
+      // Report it as missing, which is the only useful hint for the model.
+      const missingParts: string[] = []
+
+      const reportedFiles = new Set<string>()
+      for (const path of missingFilePaths) {
+        if (localSeen.has(path) || reportedFiles.has(path)) continue
+        reportedFiles.add(path)
+        missingParts.push(
+          `<file>\n<path>${path}</path>\n<note>(文件缺失)</note>\n</file>\n`,
+        )
+      }
+
+      // A folder is reported once as a whole; its nested files are unknown
+      // because the folder could not be resolved.
+      const reportedFolders = new Set<string>()
+      for (const path of missingFolderPaths) {
+        if (reportedFolders.has(path)) continue
+        reportedFolders.add(path)
+        missingParts.push(
+          `<folder>\n<path>${path}</path>\n<note>(文件夹缺失)</note>\n</folder>\n`,
+        )
+      }
+
       const fileContents =
         uniqueFiles.length > 0
           ? await readMultipleTFiles(uniqueFiles, this.app.vault)
@@ -256,12 +290,18 @@ export class PromptGenerator {
           `<file>\n<path>${path}</path>\n<note>(重复提及)</note>\n</file>\n`,
         )
       })
+      fileParts.push(...missingParts)
 
       const blocks = message.mentionables.filter(
         (m): m is MentionableBlock => m.type === 'block',
       )
-      const blockParts = blocks.map(({ file, content }) => {
-        return `<excerpt>\n<path>${file.path}</path>\n<text>\n${content}\n</text>\n</excerpt>\n`
+      const blockParts = blocks.map(({ file, content, path }) => {
+        // The excerpt text is a snapshot taken when the block was added, so it
+        // stays usable even if the file is gone; only the path is stale.
+        if (!file) {
+          return `<excerpt>\n<note>(原文件缺失)</note>\n<text>\n${content}\n</text>\n</excerpt>\n`
+        }
+        return `<excerpt>\n<path>${path}</path>\n<text>\n${content}\n</text>\n</excerpt>\n`
       })
 
       const imageDataUrls = message.mentionables

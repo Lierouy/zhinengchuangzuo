@@ -59,6 +59,7 @@ export async function getMentionableBlockData(
   return {
     content: selectionContent,
     file,
+    path: file.path,
     startLine: startLine + 1, // +1 because startLine is 0-indexed
     endLine: endLine + 1, // +1 because startLine is 0-indexed
   }

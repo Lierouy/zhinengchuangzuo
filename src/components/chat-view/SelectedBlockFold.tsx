@@ -2,6 +2,7 @@ import { ChevronDown, ChevronRight, Clipboard } from 'lucide-react'
 import { useState } from 'react'
 
 import { MentionableBlock } from '../../types/mentionable'
+import { getPathBasename } from '../../utils/chat/mentionable'
 
 import { ObsidianMarkdown } from './ObsidianMarkdown'
 
@@ -20,7 +21,9 @@ export function SelectedBlockFold({ block }: SelectedBlockFoldProps) {
       >
         {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
         <Clipboard size={16} />
-        <span className="zncz-selected-block-filename">{block.file.name}</span>
+        <span className="zncz-selected-block-filename">
+          {block.file?.name ?? getPathBasename(block.path)}
+        </span>
         <span
           className="zncz-selected-block-filename"
           style={{ color: 'var(--text-muted)' }}

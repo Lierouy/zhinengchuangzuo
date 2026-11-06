@@ -4,6 +4,10 @@ import { PropsWithChildren, useCallback } from 'react'
 
 import { useSettings } from '../../contexts/settings-context'
 import { Mentionable, MentionableCurrentFile } from '../../types/mentionable'
+import {
+  getMentionableName,
+  getPathBasename,
+} from '../../utils/chat/mentionable'
 import { MENTIONABLE_ICONS } from '../chat-input/mentionable-icons'
 
 function BadgeBase({
@@ -157,7 +161,7 @@ export default function MentionableBadge({
       return (
         <MentionBadge
           mentionable={mentionable}
-          name={mentionable.file.name}
+          name={getMentionableName(mentionable)}
           onDelete={onDelete}
           onClick={onClick}
           isFocused={isFocused}
@@ -167,7 +171,7 @@ export default function MentionableBadge({
       return (
         <MentionBadge
           mentionable={mentionable}
-          name={mentionable.folder.name}
+          name={getMentionableName(mentionable)}
           onDelete={onDelete}
           onClick={onClick}
           isFocused={isFocused}
@@ -185,7 +189,7 @@ export default function MentionableBadge({
       return (
         <MentionBadge
           mentionable={mentionable}
-          name={mentionable.file.name}
+          name={mentionable.file?.name ?? getPathBasename(mentionable.path)}
           suffix={` (${mentionable.startLine}-${mentionable.endLine})`}
           onDelete={onDelete}
           onClick={onClick}

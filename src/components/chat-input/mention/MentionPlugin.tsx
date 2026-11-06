@@ -20,6 +20,7 @@ import { createPortal } from 'react-dom'
 import { Mentionable } from '../../../types/mentionable'
 import {
   getMentionableName,
+  getPathBasename,
   serializeMentionable,
 } from '../../../utils/chat/mentionable'
 import { SearchableMentionable } from '../../../utils/fuzzy-search'
@@ -102,13 +103,13 @@ class MentionTypeaheadOption extends MenuOption {
     // `name`/`mentionable` definitely assigned when a new variant is added.
     switch (result.type) {
       case 'file':
-        super(result.file.path)
-        this.name = result.file.name
+        super(result.path)
+        this.name = getPathBasename(result.path)
         this.mentionable = result
         break
       case 'folder':
-        super(result.folder.path)
-        this.name = result.folder.name
+        super(result.path)
+        this.name = getPathBasename(result.path)
         this.mentionable = result
         break
       default: {
@@ -153,7 +154,7 @@ function MentionsTypeaheadMenuItem({
       <span className="text">{option.name}</span>
       {option.mentionable.type === 'folder' && (
         <span className="text zncz-mention-popover-folder-path">
-          {option.mentionable.folder.path}
+          {option.mentionable.path}
         </span>
       )}
     </li>

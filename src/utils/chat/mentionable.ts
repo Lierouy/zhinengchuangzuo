@@ -9,12 +9,12 @@ export const serializeMentionable = (
     case 'file':
       return {
         type: 'file',
-        file: mentionable.file.path,
+        file: mentionable.path,
       }
     case 'folder':
       return {
         type: 'folder',
-        folder: mentionable.folder.path,
+        folder: mentionable.path,
       }
     case 'current-file':
       return {
@@ -25,7 +25,7 @@ export const serializeMentionable = (
       return {
         type: 'block',
         content: mentionable.content,
-        file: mentionable.file.path,
+        file: mentionable.path,
         startLine: mentionable.startLine,
         endLine: mentionable.endLine,
       }
@@ -46,23 +46,19 @@ export const deserializeMentionable = (
   try {
     switch (mentionable.type) {
       case 'file': {
-        const file = app.vault.getFileByPath(mentionable.file)
-        if (!file) {
-          return null
-        }
+        // A missing file keeps its record: dropping it here would also erase it
+        // from the saved conversation on the next write.
         return {
           type: 'file',
-          file: file,
+          file: app.vault.getFileByPath(mentionable.file),
+          path: mentionable.file,
         }
       }
       case 'folder': {
-        const folder = app.vault.getFolderByPath(mentionable.folder)
-        if (!folder) {
-          return null
-        }
         return {
           type: 'folder',
-          folder: folder,
+          folder: app.vault.getFolderByPath(mentionable.folder),
+          path: mentionable.folder,
         }
       }
       case 'current-file': {
@@ -79,14 +75,11 @@ export const deserializeMentionable = (
         }
       }
       case 'block': {
-        const file = app.vault.getFileByPath(mentionable.file)
-        if (!file) {
-          return null
-        }
         return {
           type: 'block',
           content: mentionable.content,
-          file: file,
+          file: app.vault.getFileByPath(mentionable.file),
+          path: mentionable.file,
           startLine: mentionable.startLine,
           endLine: mentionable.endLine,
         }
@@ -120,7 +113,6 @@ export function getMentionableKey(mentionable: SerializedMentionable): string {
       return `image:${mentionable.name}:${hashString(mentionable.data)}`
   }
 }
-
 /**
  * Small non-cryptographic hash (FNV-1a) used to build stable identity keys.
  * Avoids slicing hundreds of KB of base64 and has far fewer collisions than
@@ -135,16 +127,22 @@ function hashString(value: string): string {
   return (hash >>> 0).toString(36)
 }
 
+/** Display name for a path whose entity no longer exists. */
+export function getPathBasename(path: string): string {
+  const segments = path.split('/')
+  return segments[segments.length - 1] || path
+}
+
 export function getMentionableName(mentionable: Mentionable): string {
   switch (mentionable.type) {
     case 'file':
-      return mentionable.file.name
+      return mentionable.file?.name ?? getPathBasename(mentionable.path)
     case 'folder':
-      return mentionable.folder.name
+      return mentionable.folder?.name ?? getPathBasename(mentionable.path)
     case 'current-file':
       return mentionable.file?.name ?? 'Current File'
     case 'block':
-      return `${mentionable.file.name} (${mentionable.startLine}-${mentionable.endLine})`
+      return `${mentionable.file?.name ?? getPathBasename(mentionable.path)} (${mentionable.startLine}-${mentionable.endLine})`
     case 'image':
       return mentionable.name
   }
