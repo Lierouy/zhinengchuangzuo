@@ -1,6 +1,7 @@
 import { App, Notice } from 'obsidian'
 import { useState } from 'react'
 
+import { MAX_NAME_LENGTH } from '../../../constants'
 import {
   duplicateChatModel,
   isDatabaseError,
@@ -174,6 +175,7 @@ function ChatModelFormComponent({
         <ObsidianSetting name="名称" required>
           <ObsidianTextInput
             value={formData.model}
+            maxLength={MAX_NAME_LENGTH}
             onChange={(value: string) =>
               setFormData((prev) => ({ ...prev, model: value }))
             }

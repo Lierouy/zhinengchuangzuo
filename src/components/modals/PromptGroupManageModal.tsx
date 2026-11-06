@@ -1,6 +1,7 @@
 import { App, Notice } from 'obsidian'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { MAX_NAME_LENGTH } from '../../constants'
 import { SettingsProvider, useSettings } from '../../contexts/settings-context'
 import { PromptGroupMetadata } from '../../database/context/types'
 import { isDatabaseError } from '../../database/exception'
@@ -303,6 +304,7 @@ function PromptGroupManageModalComponent({
             editingId === row.key ? (
               <ObsidianTextInput
                 value={editingValue}
+                maxLength={MAX_NAME_LENGTH}
                 onChange={(v: string) => setEditingValue(v)}
               />
             ) : (
@@ -319,6 +321,7 @@ function PromptGroupManageModalComponent({
                 content: (
                   <ObsidianTextInput
                     value={newGroupName}
+                    maxLength={MAX_NAME_LENGTH}
                     onChange={(v: string) => setNewGroupName(v)}
                   />
                 ),

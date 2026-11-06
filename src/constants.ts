@@ -2,6 +2,12 @@ import { LLMProviderType } from './types/provider.types'
 
 export const CHAT_VIEW_TYPE = 'zncz-chat-view'
 
+/**
+ * 名称类字段的统一长度上限：供应商名称、模型名称、预设提示名称、
+ * 提示组名称、组内系统提示名称、会话标题。
+ */
+export const MAX_NAME_LENGTH = 40
+
 /*
  * When adding a new provider, make sure to update these files:
  * 1. src/types/provider.types.ts

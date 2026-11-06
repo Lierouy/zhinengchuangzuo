@@ -2,6 +2,7 @@ import * as Popover from '@radix-ui/react-popover'
 import { Check, Edit, Trash, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { MAX_NAME_LENGTH } from '../../constants'
 import { useApp } from '../../contexts/app-context'
 import { useOwnerDocument } from '../../contexts/chat-container-context'
 import { ChatConversationMetadata } from '../../database/chat/types'
@@ -94,7 +95,7 @@ function ChatListItem({
               handleCancel()
             }
           }}
-          maxLength={100}
+          maxLength={MAX_NAME_LENGTH}
         />
       ) : (
         <div className="zncz-chat-list-dropdown-item-title">{title}</div>

@@ -1,6 +1,7 @@
 import { App, Notice } from 'obsidian'
 import { useMemo, useState } from 'react'
 
+import { MAX_NAME_LENGTH } from '../../constants'
 import { FilterLogic, PromptItem } from '../../database/context/types'
 import { isDatabaseError } from '../../database/exception'
 import { useContextManager } from '../../hooks/useJsonManagers'
@@ -190,7 +191,11 @@ function PromptItemFormComponent({
   return (
     <>
       <ObsidianSetting name="名称" required>
-        <ObsidianTextInput value={name} onChange={(value) => setName(value)} />
+        <ObsidianTextInput
+          value={name}
+          maxLength={MAX_NAME_LENGTH}
+          onChange={(value) => setName(value)}
+        />
       </ObsidianSetting>
       <div
         style={{

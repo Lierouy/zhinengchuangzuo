@@ -1,7 +1,7 @@
 import { App, Notice } from 'obsidian'
 import { useState } from 'react'
 
-import { PROVIDER_TYPES_INFO } from '../../../constants'
+import { MAX_NAME_LENGTH, PROVIDER_TYPES_INFO } from '../../../constants'
 import { duplicateProvider, isDatabaseError } from '../../../database/exception'
 import ZhinengchuangzuoPlugin from '../../../main'
 import {
@@ -135,6 +135,7 @@ function ProviderFormComponent({
           <ObsidianSetting name="名称" required>
             <ObsidianTextInput
               value={formData.id}
+              maxLength={MAX_NAME_LENGTH}
               onChange={(value: string) =>
                 setFormData((prev) => ({ ...prev, id: value }))
               }

@@ -3,6 +3,7 @@ import { App } from 'obsidian'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { editorStateToPlainText } from '../components/chat-input/editor-state-to-plain-text'
+import { MAX_NAME_LENGTH } from '../constants'
 import { useApp } from '../contexts/app-context'
 import { toChatMetadata } from '../database/chat/ChatManager'
 import { ChatConversationMetadata } from '../database/chat/types'
@@ -130,7 +131,10 @@ export function useChatHistory(): UseChatHistory {
       const created = await chatManager.createChat({
         id,
         title: firstUserMessage?.content
-          ? editorStateToPlainText(firstUserMessage.content).substring(0, 50)
+          ? editorStateToPlainText(firstUserMessage.content).substring(
+              0,
+              MAX_NAME_LENGTH,
+            )
           : 'New chat',
         messages: serializedMessages,
       })

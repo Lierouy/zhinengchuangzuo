@@ -1,6 +1,7 @@
 import { App, Notice } from 'obsidian'
 import { useEffect, useState } from 'react'
 
+import { MAX_NAME_LENGTH } from '../../constants'
 import { isDatabaseError } from '../../database/exception'
 import { useTemplateManager } from '../../hooks/useJsonManagers'
 import { ObsidianButton } from '../common/ObsidianButton'
@@ -131,6 +132,7 @@ function TemplateFormComponent({
       <ObsidianSetting name="名称" required>
         <ObsidianTextInput
           value={templateName}
+          maxLength={MAX_NAME_LENGTH}
           onChange={(value) => setTemplateName(value)}
         />
       </ObsidianSetting>

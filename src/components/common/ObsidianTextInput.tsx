@@ -17,6 +17,7 @@ type ObsidianTextInputProps = {
   placeholder?: string
   onChange: (value: string) => void
   type?: 'text' | 'number'
+  maxLength?: number
 }
 
 export function ObsidianTextInput({
@@ -24,6 +25,7 @@ export function ObsidianTextInput({
   placeholder,
   onChange,
   type,
+  maxLength,
 }: ObsidianTextInputProps) {
   const { containerRef, component: textInput } =
     useObsidianComponent(TEXT_INPUT_FACTORY)
@@ -46,7 +48,12 @@ export function ObsidianTextInput({
     // intended API here, not a React state mutation.
     // eslint-disable-next-line react-hooks/immutability
     if (type) textInput.inputEl.type = type
-  }, [textInput, value, placeholder, type])
+    if (maxLength === undefined) {
+      textInput.inputEl.removeAttribute('maxlength')
+    } else {
+      textInput.inputEl.maxLength = maxLength
+    }
+  }, [textInput, value, placeholder, type, maxLength])
 
   return <div ref={containerRef} />
 }
