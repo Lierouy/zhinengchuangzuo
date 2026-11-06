@@ -133,6 +133,27 @@ export function getPathBasename(path: string): string {
   return segments[segments.length - 1] || path
 }
 
+/**
+ * Counts file/folder mentions whose target no longer exists on disk.
+ * Mentions hold the `TFile`/`TFolder` captured when they were picked, so a file
+ * deleted afterwards would otherwise be read from a stale reference and fail
+ * the whole request. Does not include excerpts: their text is a snapshot.
+ */
+export function countMissingMentionables(
+  mentionables: Mentionable[],
+  app: App,
+): number {
+  let missing = 0
+  for (const mentionable of mentionables) {
+    if (mentionable.type === 'file') {
+      if (!app.vault.getFileByPath(mentionable.path)) missing++
+    } else if (mentionable.type === 'folder') {
+      if (!app.vault.getFolderByPath(mentionable.path)) missing++
+    }
+  }
+  return missing
+}
+
 export function getMentionableName(mentionable: Mentionable): string {
   switch (mentionable.type) {
     case 'file':

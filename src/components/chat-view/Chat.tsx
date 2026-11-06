@@ -34,6 +34,7 @@ import {
 } from '../../types/chat'
 import { MentionableBlock, MentionableBlockData } from '../../types/mentionable'
 import {
+  countMissingMentionables,
   getMentionableKey,
   serializeMentionable,
 } from '../../utils/chat/mentionable'
@@ -575,6 +576,20 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
             )
 
             if (!hasText && !hasImages && !hasSelectedBlocks) return
+
+            // Mentions captured before a delete/rename still hold the old
+            // reference; reading it would fail the whole request, so stop here
+            // and let the user drop the bad badges.
+            const missingCount = countMissingMentionables(
+              inputMessage.mentionables,
+              app,
+            )
+            if (missingCount > 0) {
+              new Notice(
+                `There are ${missingCount} files no longer exist, please remove them`,
+              )
+              return
+            }
 
             try {
               await handleUserMessageSubmit({
