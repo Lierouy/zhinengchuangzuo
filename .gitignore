@@ -1,3 +1,5 @@
+meta.json
+
 # vscode
 .vscode
 
@@ -13,9 +15,6 @@ tsconfig.tsbuildinfo
 
 # npm
 node_modules
-
-# They should be uploaded to GitHub releases instead.
-meta.json
 
 # Exclude sourcemaps
 *.map

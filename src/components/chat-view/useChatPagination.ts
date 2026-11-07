@@ -6,7 +6,7 @@ const PAGE_SIZE = 50
 
 /**
  * A page change swaps the whole message list, and the markdown of the new page
- * is rendered asynchronously, so the page is still growing when the DOM update
+ * is rendered asynchronously, so the page is still growing when the DOM update is done.
  * The first delay scrolls as soon as the new page is on screen, the
  * second one catches the content that rendered in the meantime.
  */

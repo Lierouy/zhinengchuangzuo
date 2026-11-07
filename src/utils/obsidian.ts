@@ -26,13 +26,15 @@ export async function readMultipleTFiles(
   return await Promise.all(files.map((file) => vault.cachedRead(file)))
 }
 
-export function getNestedFiles(folder: TFolder): TFile[] {
+/**
+ * Markdown files directly inside `folder`. Subfolders are not traversed and
+ * non-markdown files are skipped, so the result is what a folder mention sends.
+ */
+export function getFolderMarkdownFiles(folder: TFolder): TFile[] {
   const files: TFile[] = []
   for (const child of folder.children) {
-    if (child instanceof TFile) {
+    if (child instanceof TFile && child.extension === 'md') {
       files.push(child)
-    } else if (child instanceof TFolder) {
-      files.push(...getNestedFiles(child))
     }
   }
   return files

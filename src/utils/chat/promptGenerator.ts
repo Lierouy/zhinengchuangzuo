@@ -11,7 +11,7 @@ import {
 } from '../../types/chat'
 import { MentionableBlock, MentionableImage } from '../../types/mentionable'
 import { ContentPart, RequestMessage } from '../../types/request'
-import { getNestedFiles, readMultipleTFiles } from '../obsidian'
+import { getFolderMarkdownFiles, readMultipleTFiles } from '../obsidian'
 
 export class PromptGenerator {
   private app: App
@@ -192,14 +192,25 @@ export class PromptGenerator {
       const allFiles: TFile[] = []
       for (const mentionable of message.mentionables) {
         if (mentionable.type === 'file') {
-          if (mentionable.file) {
-            allFiles.push(mentionable.file)
+          // Re-resolve by path: the stored TFile was resolved when the
+          // conversation was loaded, so a file deleted afterwards still looks
+          // present and would fail (or serve stale content) when read.
+          const file = this.app.vault.getFileByPath(mentionable.path)
+          if (file) {
+            allFiles.push(file)
           } else {
             missingFilePaths.push(mentionable.path)
           }
         } else if (mentionable.type === 'folder') {
           if (mentionable.folder) {
-            allFiles.push(...getNestedFiles(mentionable.folder))
+            const folderFiles = getFolderMarkdownFiles(mentionable.folder)
+            // A folder with nothing to send is reported as missing: the model
+            // would otherwise receive an empty mention it cannot explain.
+            if (folderFiles.length > 0) {
+              allFiles.push(...folderFiles)
+            } else {
+              missingFolderPaths.push(mentionable.path)
+            }
           } else {
             missingFolderPaths.push(mentionable.path)
           }
