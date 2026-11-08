@@ -5,6 +5,11 @@ import { CHAT_VIEW_TYPE } from '../constants'
 import { TemplateManager } from '../database/template/TemplateManager'
 import type ZhinengchuangzuoPlugin from '../main'
 import type { HandleStreamInput } from '../types/chat'
+import {
+  getSelectedChatModel,
+  notifyMissingChatModel,
+} from '../utils/chat/chatModel'
+import { CONSOLE_HINT, reportError } from '../utils/reportError'
 
 import { buildHandlePrompt } from './handlePrompt'
 import {
@@ -53,13 +58,9 @@ export async function handleCurrentFile(
       return
     }
 
-    const chatModel = plugin.settings.chatModels.find(
-      (model) => model.model === plugin.settings.chatModelId,
-    )
+    const chatModel = getSelectedChatModel(plugin.settings)
     if (!chatModel) {
-      new Notice(
-        'Please configure the session model, select a session model in the settings',
-      )
+      notifyMissingChatModel()
       return
     }
     if (!plugin.settings.providers.some((p) => p.id === chatModel.providerId)) {
@@ -101,8 +102,7 @@ export async function handleCurrentFile(
       prompt: buildHandlePrompt(file.path, fileContent, blocks),
     })
   } catch (error) {
-    console.error('Failed to handle file', error)
-    new Notice('Handle failed, please check console logs')
+    reportError(`Failed to handle the file, ${CONSOLE_HINT}`, error)
   } finally {
     plugin.handleInProgress = false
   }

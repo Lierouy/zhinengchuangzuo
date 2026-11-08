@@ -32,12 +32,17 @@ import {
 } from '../../types/chat'
 import { MentionableBlock, MentionableBlockData } from '../../types/mentionable'
 import {
+  getSelectedChatModel,
+  notifyMissingChatModel,
+} from '../../utils/chat/chatModel'
+import {
   countMissingMentionables,
   getMentionableKey,
   serializeMentionable,
 } from '../../utils/chat/mentionable'
 import { groupAssistantMessages } from '../../utils/chat/message-groups'
 import { PromptGenerator } from '../../utils/chat/promptGenerator'
+import { reportError } from '../../utils/reportError'
 import { ContextManagementModal } from '../modals/ContextManagementModal'
 import { HandleSectionModal } from '../modals/HandleSectionModal'
 import { TemplateSectionModal } from '../modals/TemplateSectionModal'
@@ -235,7 +240,10 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
         abortActiveStreams()
         const conversation = await getChatMessagesById(conversationId)
         if (!conversation) {
-          throw new Error('Conversation not found')
+          // The conversation was removed (a reset, or another window) after it
+          // was listed, so there is nothing to open.
+          new Notice('Failed to load conversation')
+          return
         }
         // 原子更新：conversationId 和 chatMessages 在同一次 setState 中更新，
         // 避免 React StrictMode 下两次独立 setState 产生中间状态被自动保存捕获。
@@ -249,8 +257,7 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
         setInputMessage(newInputMessage)
         setFocusedMessageId(newInputMessage.id)
       } catch (error) {
-        new Notice('Failed to load conversation')
-        console.error('Failed to load conversation', error)
+        reportError('Failed to load conversation', error)
       }
     },
     [
@@ -300,6 +307,15 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
 
   const handleUserMessageSubmit = useCallback(
     async ({ inputChatMessages }: { inputChatMessages: ChatMessage[] }) => {
+      // Without a usable model the request can only fail. Stop before any state
+      // change so the message is not appended and the text stays in the input.
+      // A stale selection is reported too instead of silently switching models:
+      // sending with a model the user did not pick could cost real money.
+      if (!getSelectedChatModel(settings)) {
+        notifyMissingChatModel()
+        throw new Error('No chat model selected')
+      }
+
       abortActiveStreams()
 
       const lastMessage = inputChatMessages.at(-1)
@@ -350,6 +366,7 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
       abortActiveStreams,
       setChatMessages,
       includeCurrentFileContent,
+      settings,
     ],
   )
 
@@ -417,8 +434,7 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
     createOrUpdateConversation(currentConversationId, chatMessages).catch(
       (error) => {
         if (cancelled) return
-        new Notice('Failed to save chat history')
-        console.error('Failed to save chat history', error)
+        reportError('Failed to save chat history', error)
       },
     )
 

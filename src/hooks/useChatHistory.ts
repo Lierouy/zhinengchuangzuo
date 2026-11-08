@@ -216,9 +216,8 @@ export function useChatHistory(): UseChatHistory {
 
   const updateConversationTitle = useCallback(
     async (id: string, title: string): Promise<void> => {
-      if (title.length === 0) {
-        throw new Error('Chat title cannot be empty')
-      }
+      // Empty titles are rejected by `ChatManager.updateChat` itself (with the
+      // same message), so the check is not repeated here.
       const updated = await chatManager.updateChat(id, { title })
       if (!updated) {
         throw new Error('Conversation not found')

@@ -9,6 +9,7 @@ import {
 } from '../../../database/context/types'
 import { useContextManager } from '../../../hooks/useJsonManagers'
 import ZhinengchuangzuoPlugin from '../../../main'
+import { reportError } from '../../../utils/reportError'
 import { ObsidianButton } from '../../common/ObsidianButton'
 import { ObsidianDropdown } from '../../common/ObsidianDropdown'
 import { ObsidianNumberInput } from '../../common/ObsidianNumberInput'
@@ -137,8 +138,7 @@ export function ContextManagementSection({
             await contextManager.deletePromptItem(selectedGroupId, item.id)
             await fetchCurrentPrompts()
           } catch (error) {
-            console.error('Failed to delete prompt', error)
-            new Notice('Failed to delete prompt')
+            reportError('Failed to delete the prompt', error)
           }
         },
       }).open()
@@ -175,8 +175,7 @@ export function ContextManagementSection({
         await contextManager.updateGroup(selectedGroupId, { prompts })
         await fetchCurrentPrompts()
       } catch (error) {
-        console.error('Failed to reorder prompt', error)
-        new Notice('Move prompt failed')
+        reportError('Failed to move the prompt', error)
       }
     },
     [contextManager, selectedGroupId, fetchCurrentPrompts],

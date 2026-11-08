@@ -1,5 +1,8 @@
 import { PromptGroupMetadata, PromptItem } from '../../database/context/types'
 
+/** Shared by the inline checks and the pre-save validation below. */
+export const EMPTY_GROUP_NAME_MESSAGE = 'Prompt group name cannot be empty'
+
 /**
  * A pending edit recorded while the modal is open. Nothing is written to disk
  * until 保存, which is also what makes 取消 a real rollback.
@@ -57,7 +60,7 @@ export function findGroupNameError(rows: GroupRow[]): string | null {
   const seen = new Set<string>()
   for (const row of rows) {
     const name = row.name.trim()
-    if (!name) return 'Prompt group name cannot be empty'
+    if (!name) return EMPTY_GROUP_NAME_MESSAGE
     if (seen.has(name)) return `Prompt group with name ${name} already exists`
     seen.add(name)
   }

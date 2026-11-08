@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { MAX_NAME_LENGTH } from '../../constants'
 import { isDatabaseError } from '../../database/exception'
 import { useTemplateManager } from '../../hooks/useJsonManagers'
+import { reportError } from '../../utils/reportError'
 import { ObsidianButton } from '../common/ObsidianButton'
 import { ObsidianSetting } from '../common/ObsidianSetting'
 import { ObsidianTextArea } from '../common/ObsidianTextArea'
@@ -93,10 +94,10 @@ function TemplateFormComponent({
       onClose()
     } catch (error) {
       if (isDatabaseError(error, 'duplicate-template')) {
-        new Notice('A template with this name already exists')
+        // The repository message already names the offending template.
+        new Notice(error.message)
       } else {
-        console.error(error)
-        new Notice('Failed to create template')
+        reportError('Failed to save the template', error)
       }
     }
   }
@@ -115,8 +116,7 @@ function TemplateFormComponent({
         setTemplateContent(existingTemplate.content)
       })
       .catch((error: unknown) => {
-        console.error('Failed to fetch existing template', error)
-        new Notice('Failed to load template')
+        reportError('Failed to load the template', error)
       })
 
     return () => {

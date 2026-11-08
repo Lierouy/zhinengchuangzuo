@@ -4,6 +4,7 @@ import { useSettings } from '../../../contexts/settings-context'
 import { ROOT_DIR } from '../../../database/constants'
 import ZhinengchuangzuoPlugin from '../../../main'
 import { parseZhinengchuangzuoSettings } from '../../../settings/schema/settings'
+import { reportError } from '../../../utils/reportError'
 import { ObsidianButton } from '../../common/ObsidianButton'
 import { ObsidianSetting } from '../../common/ObsidianSetting'
 import { ConfirmModal } from '../../modals/ConfirmModal'
@@ -29,8 +30,7 @@ export function EtcSection({ app, plugin }: EtcSectionProps) {
             await app.vault.adapter.rmdir(userDataDir, true)
           }
         } catch (error) {
-          console.error('Failed to delete user data', error)
-          new Notice('Failed to delete user data, nothing was reset')
+          reportError('Failed to delete user data, nothing was reset', error)
           return
         }
 

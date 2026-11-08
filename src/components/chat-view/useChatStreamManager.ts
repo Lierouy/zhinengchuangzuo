@@ -1,12 +1,15 @@
 ﻿import { UseMutationResult, useMutation } from '@tanstack/react-query'
-import { Notice } from 'obsidian'
 import { useCallback, useRef } from 'react'
 
 import { useApp } from '../../contexts/app-context'
 import { useSettings } from '../../contexts/settings-context'
-import { isLLMError, isSettingsError } from '../../core/exception'
+import { isSettingsError } from '../../core/exception'
 import { getChatModelClient } from '../../core/manager'
 import { ChatMessage } from '../../types/chat'
+import {
+  getSelectedChatModel,
+  notifyMissingChatModel,
+} from '../../utils/chat/chatModel'
 import { PromptGenerator } from '../../utils/chat/promptGenerator'
 import { runCompletion } from '../../utils/llm/completion'
 import { ModelSettings, buildModelRequest } from '../../utils/model-settings'
@@ -34,7 +37,7 @@ export function useChatStreamManager({
   promptGenerator,
 }: UseChatStreamManagerParams): UseChatStreamManager {
   const app = useApp()
-  const { settings, setSettings } = useSettings()
+  const { settings } = useSettings()
 
   const activeStreamAbortControllersRef = useRef<AbortController[]>([])
 
@@ -63,35 +66,19 @@ export function useChatStreamManager({
       // Resolved per request instead of being mirrored into state: the client
       // is only needed here, and the old derive-in-an-effect version cost an
       // extra render every time settings changed.
-      const resolveClient = () => {
-        try {
-          return getChatModelClient({
-            modelId: settings.chatModelId,
-            settings,
-          })
-        } catch (error) {
-          if (!isLLMError(error, 'model-not-found')) throw error
-          // Only repair the settings when the selection is genuinely broken.
-          if (settings.chatModels.length > 0) {
-            const firstChatModel = settings.chatModels[0]
-            void setSettings({
-              ...settings,
-              chatModelId: firstChatModel.model,
-              chatModels: settings.chatModels.map((m) =>
-                m.model === firstChatModel.model ? { ...m, enable: true } : m,
-              ),
-            })
-          }
-          return null
-        }
-      }
-
-      const client = resolveClient()
-      if (!client) {
-        new Notice('Please add a model in settings first')
+      const chatModel = getSelectedChatModel(settings)
+      if (!chatModel) {
+        // Never switch models on the user's behalf: a silent switch could spend
+        // money on a model they did not choose. The submit handler blocks this
+        // before the message is added, so only a settings change that lands
+        // mid-flight can reach here.
+        notifyMissingChatModel()
         return
       }
-      const { providerClient, model } = client
+      const { providerClient, model } = getChatModelClient({
+        modelId: chatModel.model,
+        settings,
+      })
 
       abortActiveStreams()
       const abortController = new AbortController()

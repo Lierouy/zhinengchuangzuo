@@ -1,10 +1,11 @@
 import { ArrowDown, ArrowUp, Edit, Trash } from 'lucide-react'
-import { App, Notice } from 'obsidian'
+import { App } from 'obsidian'
 import { useCallback, useEffect, useState } from 'react'
 
 import { TemplateMetadata } from '../../../database/template/types'
 import { useTemplateManager } from '../../../hooks/useJsonManagers'
 import ZhinengchuangzuoPlugin from '../../../main'
+import { reportError } from '../../../utils/reportError'
 import { ConfirmModal } from '../../modals/ConfirmModal'
 import {
   CreateTemplateModal,
@@ -27,8 +28,7 @@ export function TemplateSection({ app, plugin }: TemplateSectionProps) {
     try {
       setTemplateList(await templateManager.listTemplates())
     } catch (error) {
-      console.error('Failed to fetch template list', error)
-      new Notice('Failed to load templates')
+      reportError('Failed to load templates', error)
       setTemplateList([])
     } finally {
       setIsLoading(false)
@@ -65,8 +65,7 @@ export function TemplateSection({ app, plugin }: TemplateSectionProps) {
             await templateManager.deleteTemplate(template.id)
             void fetchTemplateList()
           } catch (error) {
-            console.error('Failed to delete template', error)
-            new Notice('Failed to delete template')
+            reportError('Failed to delete the template', error)
           }
         },
       }).open()

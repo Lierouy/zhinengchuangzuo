@@ -5,6 +5,7 @@ import { MAX_NAME_LENGTH } from '../../constants'
 import { FilterLogic, PromptItem } from '../../database/context/types'
 import { isDatabaseError } from '../../database/exception'
 import { useContextManager } from '../../hooks/useJsonManagers'
+import { reportError } from '../../utils/reportError'
 import { ObsidianButton } from '../common/ObsidianButton'
 import { ObsidianDropdown } from '../common/ObsidianDropdown'
 import { ObsidianSetting } from '../common/ObsidianSetting'
@@ -182,8 +183,7 @@ function PromptItemFormComponent({
       if (isDatabaseError(error, 'duplicate-prompt-item')) {
         new Notice(error.message)
       } else {
-        console.error('Failed to save prompt item', error)
-        new Notice('Failed to save prompt')
+        reportError('Failed to save the prompt', error)
       }
     }
   }

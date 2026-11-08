@@ -91,7 +91,7 @@ function parseCustomParameters(
           target[k] = v
         }
       } else {
-        console.warn('Failed to parse custom parameter, skipping:', text)
+        console.warn('Failed to parse custom parameter', text)
       }
     } catch (err) {
       console.warn('Invalid custom parameter input', text, err)

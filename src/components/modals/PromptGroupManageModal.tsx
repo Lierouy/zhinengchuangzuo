@@ -7,6 +7,7 @@ import { PromptGroupMetadata } from '../../database/context/types'
 import { isDatabaseError } from '../../database/exception'
 import { useContextManager } from '../../hooks/useJsonManagers'
 import ZhinengchuangzuoPlugin from '../../main'
+import { reportError } from '../../utils/reportError'
 import { InlineEditTable } from '../common/InlineEditTable'
 import { ObsidianButton } from '../common/ObsidianButton'
 import { ObsidianSetting } from '../common/ObsidianSetting'
@@ -15,6 +16,7 @@ import { ReactModal } from '../common/ReactModal'
 
 import { ConfirmModal } from './ConfirmModal'
 import {
+  EMPTY_GROUP_NAME_MESSAGE,
   GroupOp,
   GroupRow,
   applyOps,
@@ -139,7 +141,7 @@ function PromptGroupManageModalComponent({
     (row: GroupRow) => {
       const trimmed = editingValue.trim()
       if (!trimmed) {
-        new Notice('Prompt group name cannot be empty')
+        new Notice(EMPTY_GROUP_NAME_MESSAGE)
         return
       }
 
@@ -228,7 +230,7 @@ function PromptGroupManageModalComponent({
   const handleConfirmAdd = useCallback(() => {
     const trimmed = newGroupName.trim()
     if (!trimmed) {
-      new Notice('The prompt group name cannot be empty')
+      new Notice(EMPTY_GROUP_NAME_MESSAGE)
       return
     }
     const tempKey = `temp:${++tempKeyCounterRef.current}`
@@ -272,8 +274,7 @@ function PromptGroupManageModalComponent({
     if (isDatabaseError(failed.error, 'duplicate-prompt-group')) {
       new Notice(failed.error.message)
     } else {
-      console.error('Failed to save prompt group changes', failed.error)
-      new Notice('Failed to save the prompt group changes')
+      reportError('Failed to save the prompt group changes', failed.error)
     }
 
     // Keep what could not be applied so the user can retry, and re-read the

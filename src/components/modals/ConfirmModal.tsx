@@ -1,6 +1,7 @@
-import { App, Notice } from 'obsidian'
+import { App } from 'obsidian'
 import { useState } from 'react'
 
+import { CONSOLE_HINT, reportError } from '../../utils/reportError'
 import { ReactModal } from '../common/ReactModal'
 
 export type ConfirmModalOptions = {
@@ -53,8 +54,7 @@ function ConfirmModalComponent({
       await onConfirm()
       onClose()
     } catch (error) {
-      console.error('Confirm action failed', error)
-      new Notice('Operation failed, Please check the console logs')
+      reportError(`Operation failed, ${CONSOLE_HINT}`, error)
       setIsPending(false)
     }
   }

@@ -1,7 +1,5 @@
-import { Notice } from 'obsidian'
 import { useCallback, useState } from 'react'
 
-import { getChatModelClient } from '../../core/manager'
 import { ZhinengchuangzuoSettings } from '../../settings/schema/setting.types'
 import {
   ChatAssistantMessage,
@@ -9,8 +7,10 @@ import {
   HandleStreamInput,
 } from '../../types/chat'
 import { RequestMessage } from '../../types/request'
+import { resolveChatModelClient } from '../../utils/chat/chatModel'
 import { runCompletion } from '../../utils/llm/completion'
 import { ModelSettings, buildModelRequest } from '../../utils/model-settings'
+import { CONSOLE_HINT, reportError } from '../../utils/reportError'
 
 type UseHandleStreamParams = {
   settings: ZhinengchuangzuoSettings
@@ -47,7 +47,7 @@ export function useHandleStream({
         abortActiveStreams()
         setHandleStreamActive(true)
 
-        const client = resolveClientOrNotify(settings)
+        const client = resolveChatModelClient(settings)
         if (!client) return
         const { providerClient, model } = client
 
@@ -81,8 +81,7 @@ export function useHandleStream({
         }
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') return
-        console.error('StartHandleStream failed', error)
-        new Notice('Unable to start file processing, please check the console')
+        reportError(`Failed to start processing the file, ${CONSOLE_HINT}`, error)
       } finally {
         setHandleStreamActive(false)
       }
@@ -97,19 +96,6 @@ export function useHandleStream({
   )
 
   return { startHandleStream, handleStreamActive }
-}
-
-/** Resolves the chat model, notifying the user when nothing is configured. */
-function resolveClientOrNotify(
-  settings: ZhinengchuangzuoSettings,
-): ReturnType<typeof getChatModelClient> | null {
-  try {
-    return getChatModelClient({ modelId: settings.chatModelId, settings })
-  } catch (error) {
-    console.warn('Failed to resolve the chat model', error)
-    new Notice('Please add a model in settings first')
-    return null
-  }
 }
 
 /** Replaces the streaming assistant message in place, or appends it once. */
