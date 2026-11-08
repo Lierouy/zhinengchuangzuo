@@ -35,11 +35,15 @@ type UseChatHistory = {
   chatList: ChatConversationMetadata[]
   /** Re-reads the conversation list from disk. */
   refreshChatList: () => Promise<void>
+  /** Drops a save that is still waiting for its debounce window. */
+  cancelPendingSaves: () => void
 }
 
 type DebouncedSave = {
   call: (id: string, messages: ChatMessage[]) => Promise<void>
   flush: () => void
+  /** Drops a pending write, e.g. after the data it belongs to was deleted. */
+  cancel: () => void
 }
 
 /**
@@ -90,6 +94,10 @@ function createDebouncedSave(
       // `run` settles the pending promise itself once the write completes.
       void debounced.flush()
     },
+    cancel: () => {
+      settlePending()
+      debounced.cancel()
+    },
   }
 }
 
@@ -109,7 +117,12 @@ export function useChatHistory(): UseChatHistory {
   }, [])
 
   const fetchChatList = useCallback(async () => {
-    setChatList(await chatManager.listChats())
+    try {
+      setChatList(await chatManager.listChats())
+    } catch (error) {
+      // Never leave an unhandled rejection behind; the previous list stays.
+      console.error('Failed to load the conversation list', error)
+    }
   }, [chatManager])
 
   useEffect(() => {
@@ -176,6 +189,10 @@ export function useChatHistory(): UseChatHistory {
     [],
   )
 
+  const cancelPendingSaves = useCallback(() => {
+    debouncedSave.cancel()
+  }, [debouncedSave])
+
   const deleteConversation = useCallback(
     async (id: string): Promise<void> => {
       if (!(await chatManager.deleteChat(id))) return
@@ -219,6 +236,7 @@ export function useChatHistory(): UseChatHistory {
     updateConversationTitle,
     chatList,
     refreshChatList: fetchChatList,
+    cancelPendingSaves,
   }
 }
 

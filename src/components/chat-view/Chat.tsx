@@ -90,6 +90,7 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
     updateConversationTitle,
     chatList,
     refreshChatList,
+    cancelPendingSaves,
   } = useChatHistory()
 
   const contextManager = useContextManager()
@@ -367,6 +368,9 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
   useEffect(() => {
     return plugin.onDataReset(() => {
       abortActiveStreams()
+      // A save that is still waiting for its debounce window belongs to the
+      // conversation that was just deleted; letting it run would recreate it.
+      cancelPendingSaves()
       setConversationState({
         conversationId: crypto.randomUUID(),
         chatMessages: [],
@@ -381,6 +385,7 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
     plugin,
     app,
     abortActiveStreams,
+    cancelPendingSaves,
     refreshChatList,
     setCurrentPage,
     highlightMentionable,

@@ -18,12 +18,19 @@ export abstract class AbstractJsonRepository<T, M> {
   }
 
   /**
-   * Lazily creates the data directory once. Every filesystem operation awaits
-   * this so a `create()` can never race the initial `mkdir`.
+   * Lazily creates the data directory. Every filesystem operation awaits this
+   * so a `create()` can never race the initial `mkdir`. The folder is also
+   * re-created when it disappears while the plugin is running: a data reset
+   * deletes the whole `user_data` tree, and listing a missing folder throws.
    */
-  protected ensureDirectory(): Promise<void> {
-    this.ensureDirPromise ??= this.createDirectory()
-    return this.ensureDirPromise
+  protected async ensureDirectory(): Promise<void> {
+    if (this.ensureDirPromise) {
+      await this.ensureDirPromise
+      if (await this.app.vault.adapter.exists(this.dataDir)) return
+      this.ensureDirPromise = null
+    }
+    this.ensureDirPromise = this.createDirectory()
+    await this.ensureDirPromise
   }
 
   private async createDirectory(): Promise<void> {

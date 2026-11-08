@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { useSettings } from '../../../contexts/settings-context'
 import { TemplateMetadata } from '../../../database/template/types'
@@ -23,16 +23,24 @@ export function HandleSection({
   const templateManager = useTemplateManager()
   const [templateList, setTemplateList] = useState<TemplateMetadata[]>([])
 
-  useEffect(() => {
-    void templateManager.listTemplates().then(setTemplateList)
+  const fetchTemplateList = useCallback(async () => {
+    try {
+      setTemplateList(await templateManager.listTemplates())
+    } catch (error) {
+      console.error('Failed to fetch template list', error)
+    }
   }, [templateManager])
+
+  useEffect(() => {
+    void fetchTemplateList()
+  }, [fetchTemplateList])
 
   // A reset deletes every template file, so reload the list for the dropdown.
   useEffect(() => {
     return plugin.onDataReset(() => {
-      void templateManager.listTemplates().then(setTemplateList)
+      void fetchTemplateList()
     })
-  }, [plugin, templateManager])
+  }, [plugin, fetchTemplateList])
 
   const templateOptions = useMemo(() => {
     return Object.fromEntries(templateList.map((t) => [t.id, t.name]))
