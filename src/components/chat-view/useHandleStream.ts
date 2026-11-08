@@ -50,7 +50,7 @@ export function useHandleStream({
         abortActiveStreams()
         setHandleStreamActive(true)
 
-        const client = resolveChatModelClient(settings)
+        const client = resolveChatModelClient(settings, app)
         if (!client) return
         const { providerClient, model } = client
 

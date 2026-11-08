@@ -17,11 +17,13 @@ type ProvidersSectionProps = {
 }
 
 export function ProvidersSection({ app, plugin }: ProvidersSectionProps) {
-  const { settings, setSettings } = useSettings()
+  // Only used for rendering. Writes below read `plugin.settings` at call time so
+  // a render snapshot can never resurrect entries that were removed meanwhile.
+  const { settings } = useSettings()
 
   const handleDeleteProvider = async (provider: LLMProvider) => {
     // Get associated models
-    const associatedChatModels = settings.chatModels.filter(
+    const associatedChatModels = plugin.settings.chatModels.filter(
       (m) => m.providerId === provider.id,
     )
 
@@ -34,14 +36,23 @@ export function ProvidersSection({ app, plugin }: ProvidersSectionProps) {
       message: message,
       ctaText: '确定',
       onConfirm: async () => {
-        await setSettings({
-          ...settings,
-          providers: [...settings.providers].filter(
-            (v) => v.id !== provider.id,
+        const current = plugin.settings
+        const removedModels = current.chatModels.filter(
+          (m) => m.providerId === provider.id,
+        )
+        const removedModelNames = new Set(removedModels.map((m) => m.model))
+
+        await plugin.setSettings({
+          ...current,
+          providers: current.providers.filter((v) => v.id !== provider.id),
+          chatModels: current.chatModels.filter(
+            (m) => m.providerId !== provider.id,
           ),
-          chatModels: [...settings.chatModels].filter(
-            (v) => v.providerId !== provider.id,
-          ),
+          // Dropping the models without this would leave `chatModelId` pointing
+          // at a model that no longer exists.
+          chatModelId: removedModelNames.has(current.chatModelId)
+            ? ''
+            : current.chatModelId,
         })
       },
     }).open()

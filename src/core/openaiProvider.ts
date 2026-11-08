@@ -26,12 +26,14 @@ type OpenAICompatibleProvider = Extract<
 
 export function createOpenAIProvider(
   provider: OpenAICompatibleProvider,
+  resolvedApiKey?: string,
 ): LLMProviderClient {
   const adapter = new OpenAIMessageAdapter(provider.customReasoningField)
   const client = new (
     provider.additionalSettings?.noStainless ? NoStainlessOpenAI : OpenAI
   )({
-    apiKey: provider.apiKey ?? '',
+    // `resolvedApiKey` is the SecretStorage lookup.
+    apiKey: resolvedApiKey ?? '',
     baseURL: provider.baseUrl ? provider.baseUrl.replace(/\/+$/, '') : '',
     dangerouslyAllowBrowser: true,
   })

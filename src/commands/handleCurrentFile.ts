@@ -6,8 +6,8 @@ import { TemplateManager } from '../database/template/TemplateManager'
 import type ZhinengchuangzuoPlugin from '../main'
 import type { HandleStreamInput } from '../types/chat'
 import {
-  getSelectedChatModel,
-  notifyMissingChatModel,
+  getChatModelProblem,
+  notifyChatModelProblem,
 } from '../utils/chat/chatModel'
 import { CONSOLE_HINT, reportError } from '../utils/reportError'
 
@@ -58,13 +58,9 @@ export async function handleCurrentFile(
       return
     }
 
-    const chatModel = getSelectedChatModel(plugin.settings)
-    if (!chatModel) {
-      notifyMissingChatModel()
-      return
-    }
-    if (!plugin.settings.providers.some((p) => p.id === chatModel.providerId)) {
-      new Notice('The provider for this model is not configured')
+    const modelProblem = getChatModelProblem(plugin.settings)
+    if (modelProblem) {
+      notifyChatModelProblem(modelProblem)
       return
     }
 

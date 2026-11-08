@@ -4,12 +4,8 @@ import { useCallback, useRef } from 'react'
 import { useApp } from '../../contexts/app-context'
 import { useSettings } from '../../contexts/settings-context'
 import { isSettingsError } from '../../core/exception'
-import { getChatModelClient } from '../../core/manager'
 import { ChatMessage } from '../../types/chat'
-import {
-  getSelectedChatModel,
-  notifyMissingChatModel,
-} from '../../utils/chat/chatModel'
+import { resolveChatModelClient } from '../../utils/chat/chatModel'
 import { PromptGenerator } from '../../utils/chat/promptGenerator'
 import { runCompletion } from '../../utils/llm/completion'
 import { ModelSettings, buildModelRequest } from '../../utils/model-settings'
@@ -65,20 +61,12 @@ export function useChatStreamManager({
 
       // Resolved per request instead of being mirrored into state: the client
       // is only needed here, and the old derive-in-an-effect version cost an
-      // extra render every time settings changed.
-      const chatModel = getSelectedChatModel(settings)
-      if (!chatModel) {
-        // Never switch models on the user's behalf: a silent switch could spend
-        // money on a model they did not choose. The submit handler blocks this
-        // before the message is added, so only a settings change that lands
-        // mid-flight can reach here.
-        notifyMissingChatModel()
-        return
-      }
-      const { providerClient, model } = getChatModelClient({
-        modelId: chatModel.model,
-        settings,
-      })
+      // extra render every time settings changed. Resolution also reports why
+      // it failed, so a stale selection never turns into a silent no-reply —
+      // and never into a switch to a model the user did not pick.
+      const client = resolveChatModelClient(settings, app)
+      if (!client) return
+      const { providerClient, model } = client
 
       abortActiveStreams()
       const abortController = new AbortController()

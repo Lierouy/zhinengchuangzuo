@@ -30,8 +30,10 @@ type AnthropicCompatibleProvider = Extract<
 
 export function createAnthropicProvider(
   provider: AnthropicCompatibleProvider,
+  resolvedApiKey?: string,
 ): LLMProviderClient {
-  const apiKey = provider.apiKey ?? ''
+  // `resolvedApiKey` is the SecretStorage lookup.
+  const apiKey = resolvedApiKey ?? ''
   const client = new (
     provider.additionalSettings?.noStainless ? NoStainlessAnthropic : Anthropic
   )({

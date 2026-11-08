@@ -9,8 +9,11 @@ import {
   LLMProviderType,
   llmProviderSchema,
 } from '../../../types/provider.types'
+import { syncModelsProviderType } from '../../../utils/chat/chatModel'
+import { CONSOLE_HINT, reportError } from '../../../utils/reportError'
 import { ObsidianButton } from '../../common/ObsidianButton'
 import { ObsidianDropdown } from '../../common/ObsidianDropdown'
+import { ObsidianSecretPicker } from '../../common/ObsidianSecretPicker'
 import { ObsidianSetting } from '../../common/ObsidianSetting'
 import { ObsidianTextInput } from '../../common/ObsidianTextInput'
 import { ObsidianToggle } from '../../common/ObsidianToggle'
@@ -64,64 +67,68 @@ function ProviderFormComponent({
         },
   )
 
+  const apiKeyId = formData.apiKey ?? ''
+
   const handleSubmit = async () => {
     try {
-      if (provider) {
-        const newProviders = [...plugin.settings.providers]
-        const currentProviderIndex = newProviders.findIndex(
-          (v) => v.id === provider.id,
+      const validationResult = llmProviderSchema.safeParse({
+        ...formData,
+        // The name is fixed while editing, so it can never be blanked by a
+        // stale form value.
+        id: provider?.id ?? formData.id,
+      })
+      if (!validationResult.success) {
+        new Notice(
+          validationResult.error.issues.map((v) => v.message).join('\n'),
         )
-
-        if (currentProviderIndex === -1) {
-          new Notice(`This ID has no supplier`)
-          return
-        }
-
-        const validationResult = llmProviderSchema.safeParse(formData)
-        if (!validationResult.success) {
-          new Notice(
-            validationResult.error.issues.map((v) => v.message).join('\n'),
-          )
-          return
-        }
-
-        await plugin.setSettings({
-          ...plugin.settings,
-          providers: [
-            ...plugin.settings.providers.slice(0, currentProviderIndex),
-            formData,
-            ...plugin.settings.providers.slice(currentProviderIndex + 1),
-          ],
-        })
-      } else {
-        if (
-          plugin.settings.providers.some(
-            (p: LLMProvider) => p.id === formData.id,
-          )
-        ) {
-          throw duplicateProvider(formData.id)
-        }
-
-        const validationResult = llmProviderSchema.safeParse(formData)
-        if (!validationResult.success) {
-          new Notice(
-            validationResult.error.issues.map((v) => v.message).join('\n'),
-          )
-          return
-        }
-
-        await plugin.setSettings({
-          ...plugin.settings,
-          providers: [...plugin.settings.providers, formData],
-        })
+        return
       }
+      // Save the parsed value, not the form state: the schema is what strips
+      // unknown keys and applies defaults, so persisting `formData` would keep
+      // whatever the form happened to hold.
+      const providerData = validationResult.data
+
+      const providers = plugin.settings.providers
+      const editIndex = provider
+        ? providers.findIndex((v) => v.id === provider.id)
+        : -1
+
+      if (provider && editIndex === -1) {
+        new Notice('This provider was deleted in the meantime')
+        return
+      }
+      if (editIndex === -1 && providers.some((p) => p.id === providerData.id)) {
+        throw duplicateProvider(providerData.id)
+      }
+
+      // Models carry their own copy of the provider type, so changing it here
+      // has to propagate or every model under this provider would fail the
+      // client's type guard on its next request.
+      const chatModels = syncModelsProviderType(
+        plugin.settings.chatModels,
+        providerData.id,
+        providerData.type,
+      )
+
+      await plugin.setSettings({
+        ...plugin.settings,
+        providers:
+          editIndex === -1
+            ? [...providers, providerData]
+            : [
+                ...providers.slice(0, editIndex),
+                providerData,
+                ...providers.slice(editIndex + 1),
+              ],
+        chatModels,
+      })
 
       onClose()
     } catch (error) {
       if (isDatabaseError(error, 'duplicate-provider')) {
         new Notice(error.message)
       } else {
-        throw error
+        reportError(`Failed to save the provider, ${CONSOLE_HINT}`, error)
       }
     }
   }
@@ -180,8 +187,8 @@ function ProviderFormComponent({
 
         <ObsidianSetting name="API 密钥" required>
           <div style={{ marginTop: '8px' }}></div>
-          <ObsidianTextInput
-            value={formData.apiKey ?? ''}
+          <ObsidianSecretPicker
+            value={apiKeyId}
             onChange={(value: string) =>
               setFormData((prev) => ({ ...prev, apiKey: value }))
             }

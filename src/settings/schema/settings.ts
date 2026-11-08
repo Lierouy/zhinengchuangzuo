@@ -1,57 +1,62 @@
-// 如果需要添加设置迁移，应在 settings.ts 添加 SETTING_MIGRATIONS 数组。
+import { z } from 'zod'
+
+import { chatModelSchema } from '../../types/chat-model.types'
+import { llmProviderSchema } from '../../types/provider.types'
+
 import {
-  SETTINGS_SCHEMA_VERSION,
-  SettingMigration,
   ZhinengchuangzuoSettings,
   zhinengchuangzuoSettingsSchema,
 } from './setting.types'
 
-export const SETTING_MIGRATIONS: SettingMigration[] = []
+/**
+ * The schema replaces a whole array with its `[]` fallback as soon as one entry
+ * fails, so a single malformed provider would also wipe every model that points
+ * at it. Drop only the broken entries here and let the rest parse normally.
+ */
+function keepValidEntries(
+  label: string,
+  value: unknown,
+  schema: z.ZodType,
+): unknown {
+  if (!Array.isArray(value)) return value
+  const kept = value.filter((entry) => schema.safeParse(entry).success)
+  const dropped = value.length - kept.length
+  if (dropped > 0) {
+    console.warn(`Dropped ${dropped} invalid ${label} while loading settings`)
+  }
+  return kept
+}
 
-function migrateSettings(
-  data: Record<string, unknown>,
-): Record<string, unknown> {
-  let currentData = { ...data }
-  let currentVersion = (currentData.version as number) ?? 0
-
-  for (const migration of SETTING_MIGRATIONS) {
-    if (
-      currentVersion >= migration.fromVersion &&
-      currentVersion < migration.toVersion &&
-      migration.toVersion <= SETTINGS_SCHEMA_VERSION
-    ) {
-      console.log(
-        `Migrating settings from ${migration.fromVersion} to ${migration.toVersion}`,
-      )
-      currentData = migration.migrate(currentData)
-      currentVersion = migration.toVersion
-    }
+function dropInvalidEntries(data: unknown): unknown {
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+    return data
   }
 
-  return currentData
+  const record = { ...(data as Record<string, unknown>) }
+  if (Array.isArray(record.providers)) {
+    record.providers = keepValidEntries(
+      'provider',
+      record.providers,
+      llmProviderSchema,
+    )
+  }
+  if (Array.isArray(record.chatModels)) {
+    record.chatModels = keepValidEntries(
+      'chat model',
+      record.chatModels,
+      chatModelSchema,
+    )
+  }
+  return record
 }
 
 export function parseZhinengchuangzuoSettings(
   data: unknown,
 ): ZhinengchuangzuoSettings {
-  // Read the raw version before schema parsing: the schema's `.catch()` would
-  // otherwise silently rewrite an old version to the current one, making
-  // migrations unreachable.
-  const rawVersion =
-    data && typeof data === 'object' && 'version' in data
-      ? (data as { version?: unknown }).version
-      : undefined
-
   try {
-    const migratedData = migrateSettings(data as Record<string, unknown>)
-    return zhinengchuangzuoSettingsSchema.parse(migratedData)
+    return zhinengchuangzuoSettingsSchema.parse(dropInvalidEntries(data))
   } catch (error) {
     console.warn('Invalid settings provided, using defaults', error)
-    if (rawVersion !== undefined && rawVersion !== SETTINGS_SCHEMA_VERSION) {
-      console.warn(
-        `Settings version could not be migrated to ${SETTINGS_SCHEMA_VERSION}, back to defaults`,
-      )
-    }
     return zhinengchuangzuoSettingsSchema.parse({})
   }
 }

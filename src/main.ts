@@ -25,14 +25,14 @@ import { ensureFolderExists, getMentionableBlockData } from './utils/obsidian'
 const arrayLength = (value: unknown): number =>
   Array.isArray(value) ? value.length : 0
 
-/** True when parsing replaced a non-empty provider/model list with an empty one. */
+/** True when parsing dropped providers or models that the file still contained. */
 function lostSettingsEntries(
   raw: Record<string, unknown>,
   parsed: ZhinengchuangzuoSettings,
 ): boolean {
   return (
-    (arrayLength(raw.providers) > 0 && parsed.providers.length === 0) ||
-    (arrayLength(raw.chatModels) > 0 && parsed.chatModels.length === 0)
+    arrayLength(raw.providers) > parsed.providers.length ||
+    arrayLength(raw.chatModels) > parsed.chatModels.length
   )
 }
 
@@ -166,7 +166,7 @@ export default class ZhinengchuangzuoPlugin extends Plugin {
 
     if (lostSettingsEntries(raw, parsed)) {
       new Notice(
-        'Providers or models could not be read and were reset, backup was saved as config.json.bak',
+        'Providers or models could not be read and were removed, backup was saved as config.json.bak',
       )
     }
   }

@@ -17,19 +17,22 @@ const baseChatModelSchema = z.object({
     })
     .min(1, 'Model is required'),
   enable: z.boolean().default(true).optional(),
-  // Optional per-model settings for API tuning
+  // Optional per-model settings for API tuning. Every field falls back on its
+  // own so a single bad value cannot invalidate the model, and therefore cannot
+  // take the whole `chatModels` array down with it.
   settings: z
     .object({
-      temperature: z.number().optional(),
-      topP: z.number().optional(),
-      contextCount: z.number().optional(),
-      maxTokens: z.number().optional(),
-      streamOutput: z.boolean().optional(),
+      temperature: z.number().optional().catch(undefined),
+      topP: z.number().optional().catch(undefined),
+      contextCount: z.number().optional().catch(undefined),
+      maxTokens: z.number().optional().catch(undefined),
+      streamOutput: z.boolean().optional().catch(undefined),
       // customParameters stored as array of raw strings; each entry is a top-level
       // key/value snippet that will be parsed before sending, e.g. '"thinking": {"type":"disabled"}'
-      customParameters: z.array(z.string()).optional(),
+      customParameters: z.array(z.string()).optional().catch(undefined),
     })
-    .optional(),
+    .optional()
+    .catch(undefined),
 })
 
 export const chatModelSchema = z.discriminatedUnion('providerType', [

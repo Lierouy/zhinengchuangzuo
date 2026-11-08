@@ -26,9 +26,10 @@ export const zhinengchuangzuoSettingsSchema = z.object({
 
   // Handle prompt: selected template ID from preset prompts
   handlePromptId: z.string().catch(''),
-  // Handle feature limits
-  handleMaxLinks: z.number().optional(),
-  handleMaxChars: z.number().optional(),
+  // Handle feature limits. A malformed number must not fail the whole object:
+  // without these catches one bad value would reset every other setting too.
+  handleMaxLinks: z.number().optional().catch(undefined),
+  handleMaxChars: z.number().optional().catch(undefined),
   // Chat options — each field falls back independently so one invalid value
   // cannot discard the user's other preferences.
   chatOptions: z
@@ -43,9 +44,3 @@ export const zhinengchuangzuoSettingsSchema = z.object({
 export type ZhinengchuangzuoSettings = z.infer<
   typeof zhinengchuangzuoSettingsSchema
 >
-
-export type SettingMigration = {
-  fromVersion: number
-  toVersion: number
-  migrate: (data: Record<string, unknown>) => Record<string, unknown>
-}

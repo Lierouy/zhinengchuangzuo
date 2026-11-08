@@ -4,20 +4,19 @@ import { useState } from 'react'
 
 import { useOwnerDocument } from '../../contexts/chat-container-context'
 import { useSettings } from '../../contexts/settings-context'
+import { isChatModelEnabled } from '../../utils/chat/chatModel'
 
 export function ModelSelect() {
   const { settings, setSettings } = useSettings()
   const [isOpen, setIsOpen] = useState(false)
   const ownerDocument = useOwnerDocument()
-  const enabledChatModels = settings.chatModels.filter(
-    ({ enable }) => enable ?? true,
-  )
+  const enabledChatModels = settings.chatModels.filter(isChatModelEnabled)
   const hasModels = enabledChatModels.length > 0
-  const currentModel = hasModels
-    ? settings.chatModels.find((m) => m.model === settings.chatModelId)
-    : null
-  const displayText =
-    hasModels && currentModel ? currentModel.model : '(在设置界面添加模型)'
+  // Look the selection up in the same filtered list that fills the menu,
+  // otherwise a disabled model would be shown although it cannot be picked.
+  const currentModel =
+    enabledChatModels.find((m) => m.model === settings.chatModelId) ?? null
+  const displayText = currentModel ? currentModel.model : '(在设置界面添加模型)'
 
   return (
     <DropdownMenu.Root open={isOpen} onOpenChange={setIsOpen}>

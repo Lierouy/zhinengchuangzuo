@@ -32,8 +32,8 @@ import {
 } from '../../types/chat'
 import { MentionableBlock, MentionableBlockData } from '../../types/mentionable'
 import {
-  getSelectedChatModel,
-  notifyMissingChatModel,
+  getChatModelProblem,
+  notifyChatModelProblem,
 } from '../../utils/chat/chatModel'
 import {
   countMissingMentionables,
@@ -311,8 +311,9 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
       // change so the message is not appended and the text stays in the input.
       // A stale selection is reported too instead of silently switching models:
       // sending with a model the user did not pick could cost real money.
-      if (!getSelectedChatModel(settings)) {
-        notifyMissingChatModel()
+      const modelProblem = getChatModelProblem(settings)
+      if (modelProblem) {
+        notifyChatModelProblem(modelProblem)
         throw new Error('No chat model selected')
       }
 

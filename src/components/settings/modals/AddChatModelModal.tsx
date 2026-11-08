@@ -9,6 +9,7 @@ import {
 import ZhinengchuangzuoPlugin from '../../../main'
 import { ChatModel, chatModelSchema } from '../../../types/chat-model.types'
 import { sanitizeModelSettings } from '../../../utils/model-settings'
+import { CONSOLE_HINT, reportError } from '../../../utils/reportError'
 import { InlineEditTable } from '../../common/InlineEditTable'
 import { ObsidianButton } from '../../common/ObsidianButton'
 import { ObsidianDropdown } from '../../common/ObsidianDropdown'
@@ -111,60 +112,58 @@ function ChatModelFormComponent({
         ? chatModels.findIndex((v) => v.model === chatModel.model)
         : -1
 
-      if (!chatModel && chatModels.some((p) => p.model === formData.model)) {
-        throw duplicateChatModel(formData.model)
-      }
       if (chatModel && editIndex === -1) {
-        new Notice(`This model has no model`)
-        return
-      }
-      if (!providers.some((provider) => provider.id === formData.providerId)) {
-        new Notice('Provider with this ID does not exist')
+        new Notice('This model was deleted in the meantime')
         return
       }
 
-      const completeData = {
+      const validationResult = chatModelSchema.safeParse({
         ...formData,
         settings: formData.settings
           ? sanitizeModelSettings(formData.settings)
           : undefined,
-        enable: chatModel ? chatModel.enable : true,
-      } as ChatModel
-
-      const validationResult = chatModelSchema.safeParse(completeData)
+        enable: chatModel ? (chatModel.enable ?? true) : true,
+      })
       if (!validationResult.success) {
         new Notice(
           validationResult.error.issues.map((v) => v.message).join('\n'),
         )
         return
       }
+      // Save the parsed value, not the form state: the schema is what strips
+      // unknown keys and applies defaults, so persisting `formData` would keep
+      // whatever the form happened to hold.
+      const modelData = validationResult.data
 
-      if (chatModel) {
-        await plugin.setSettings({
-          ...plugin.settings,
-          chatModels: [
-            ...chatModels.slice(0, editIndex),
-            completeData,
-            ...chatModels.slice(editIndex + 1),
-          ],
-          chatModelId:
-            plugin.settings.chatModelId === chatModel.model
-              ? formData.model
-              : plugin.settings.chatModelId,
-        })
-      } else {
-        await plugin.setSettings({
-          ...plugin.settings,
-          chatModels: [...chatModels, completeData],
-        })
+      if (!providers.some((p) => p.id === modelData.providerId)) {
+        new Notice('Provider with this ID does not exist')
+        return
       }
+      if (
+        editIndex === -1 &&
+        chatModels.some((m) => m.model === modelData.model)
+      ) {
+        throw duplicateChatModel(modelData.model)
+      }
+
+      await plugin.setSettings({
+        ...plugin.settings,
+        chatModels:
+          editIndex === -1
+            ? [...chatModels, modelData]
+            : [
+                ...chatModels.slice(0, editIndex),
+                modelData,
+                ...chatModels.slice(editIndex + 1),
+              ],
+      })
 
       onClose()
     } catch (error) {
       if (isDatabaseError(error, 'duplicate-chat-model')) {
         new Notice(error.message)
       } else {
-        throw error
+        reportError(`Failed to save the model, ${CONSOLE_HINT}`, error)
       }
     }
   }

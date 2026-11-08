@@ -3,6 +3,9 @@ import { z } from 'zod'
 export const baseLlmProviderSchema = z.object({
   id: z.string().min(1, 'id is required'),
   baseUrl: z.string().optional(),
+  // The id of an entry in Obsidian's secret storage — never the secret itself,
+  // so credentials stay out of this plugin's config file. Resolved through
+  // `utils/secret-storage.ts` right before a request is built.
   apiKey: z.string().optional(),
   customReasoningField: z.string().optional(),
   // Each provider type narrows this to its own shape, so the base must stay

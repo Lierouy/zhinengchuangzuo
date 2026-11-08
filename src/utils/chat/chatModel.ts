@@ -1,15 +1,19 @@
-import { Notice } from 'obsidian'
+import { App, Notice } from 'obsidian'
 
 import { getChatModelClient } from '../../core/manager'
 import { ZhinengchuangzuoSettings } from '../../settings/schema/setting.types'
 import { ChatModel } from '../../types/chat-model.types'
+import { LLMProvider } from '../../types/provider.types'
+/** A model is enabled unless it was explicitly turned off. */
+export function isChatModelEnabled(model: ChatModel): boolean {
+  return model.enable ?? true
+}
 
-/**
- * The chat model picked in the settings, or null when the selection is empty or
- * points to a model that has since been deleted. Purely local: it never builds a
- * provider client, so it is safe to use as a pre-flight check.
- */
-export function getSelectedChatModel(
+/** Why the configured chat model cannot be used right now. */
+export type ChatModelProblem = 'not-selected' | 'disabled' | 'missing-provider'
+
+/** The model `chatModelId` points at, ignored when that model has been deleted. */
+function findSelectedChatModel(
   settings: ZhinengchuangzuoSettings,
 ): ChatModel | null {
   return (
@@ -18,9 +22,49 @@ export function getSelectedChatModel(
   )
 }
 
-/** Single home of the "no model" wording, so the call sites cannot drift. */
-export function notifyMissingChatModel(): void {
-  new Notice('Please add a model in settings first')
+/**
+ * Single place that decides whether a request may be sent. The disabled check
+ * lives here (not only in the pickers) so the "enable" switch cannot be
+ * bypassed by a hand-edited config or a stale selection.
+ */
+export function getChatModelProblem(
+  settings: ZhinengchuangzuoSettings,
+): ChatModelProblem | null {
+  const model = findSelectedChatModel(settings)
+  if (!model) return 'not-selected'
+  if (!isChatModelEnabled(model)) return 'disabled'
+  if (!settings.providers.some((p) => p.id === model.providerId)) {
+    return 'missing-provider'
+  }
+  return null
+}
+
+const CHAT_MODEL_PROBLEM_MESSAGES: Record<ChatModelProblem, string> = {
+  'not-selected': 'Please add a model in settings first',
+  disabled:
+    'The selected model is disabled, enable it or pick another model in settings',
+  'missing-provider': 'The provider for this model is not configured',
+}
+
+export function notifyChatModelProblem(problem: ChatModelProblem): void {
+  new Notice(CHAT_MODEL_PROBLEM_MESSAGES[problem])
+}
+
+/**
+ * Models carry their own copy of the provider type. Editing a provider's type
+ * has to propagate, otherwise every model under it fails the client's type
+ * guard on its next request.
+ */
+export function syncModelsProviderType(
+  chatModels: ChatModel[],
+  providerId: string,
+  providerType: ChatModel['providerType'],
+): ChatModel[] {
+  return chatModels.map((model) =>
+    model.providerId === providerId && model.providerType !== providerType
+      ? { ...model, providerType }
+      : model,
+  )
 }
 
 /**
@@ -29,18 +73,38 @@ export function notifyMissingChatModel(): void {
  */
 export function resolveChatModelClient(
   settings: ZhinengchuangzuoSettings,
+  app: App,
 ): ReturnType<typeof getChatModelClient> | null {
-  const selected = getSelectedChatModel(settings)
-  if (!selected) {
-    notifyMissingChatModel()
+  const problem = getChatModelProblem(settings)
+  if (problem) {
+    notifyChatModelProblem(problem)
     return null
   }
 
+  const selected = findSelectedChatModel(settings)
+  if (!selected) return null
+
   try {
-    return getChatModelClient({ modelId: selected.model, settings })
+    return getChatModelClient({
+      modelId: selected.model,
+      settings,
+      // Keys live in Obsidian's SecretStorage; the resolver is injected here so
+      // `core` stays free of app-level APIs.
+      resolveApiKey: (provider) => resolveProviderApiKey(app, provider),
+    })
   } catch (error) {
     console.warn('Failed to resolve the chat model', error)
-    notifyMissingChatModel()
+    notifyChatModelProblem('not-selected')
     return null
   }
+}
+
+/**
+ * The provider's API key, read from Obsidian's own secret storage.
+ * `provider.apiKey` holds the storage id and never the secret itself,
+ * so the plugin config stays free of credentials.
+ */
+export function resolveProviderApiKey(app: App, provider: LLMProvider): string {
+  if (!provider.apiKey) return ''
+  return app.secretStorage.getSecret(provider.apiKey) ?? ''
 }

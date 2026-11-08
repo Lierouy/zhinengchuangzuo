@@ -3,6 +3,7 @@ import { App } from 'obsidian'
 
 import { useSettings } from '../../../contexts/settings-context'
 import ZhinengchuangzuoPlugin from '../../../main'
+import { isChatModelEnabled } from '../../../utils/chat/chatModel'
 import { ObsidianToggle } from '../../common/ObsidianToggle'
 import { ConfirmModal } from '../../modals/ConfirmModal'
 import {
@@ -15,10 +16,10 @@ type ModelsSectionProps = {
   plugin: ZhinengchuangzuoPlugin
 }
 
-const isEnabled = (enable: boolean | undefined | null) => enable ?? true
-
 export function ModelsSection({ app, plugin }: ModelsSectionProps) {
-  const { settings, setSettings } = useSettings()
+  // Only used for rendering. Writes below read `plugin.settings` at call time so
+  // a render snapshot can never resurrect entries that were removed meanwhile.
+  const { settings } = useSettings()
 
   const handleDeleteChatModel = async (modelId: string) => {
     const message = `确定要删除模型“ ${modelId} ”吗？`
@@ -27,13 +28,12 @@ export function ModelsSection({ app, plugin }: ModelsSectionProps) {
       message: message,
       ctaText: '确定',
       onConfirm: async () => {
-        await setSettings({
-          ...settings,
-          chatModels: [...settings.chatModels].filter(
-            (v) => v.model !== modelId,
-          ),
+        const current = plugin.settings
+        await plugin.setSettings({
+          ...current,
+          chatModels: current.chatModels.filter((v) => v.model !== modelId),
           chatModelId:
-            settings.chatModelId === modelId ? '' : settings.chatModelId,
+            current.chatModelId === modelId ? '' : current.chatModelId,
         })
       },
     }).open()
@@ -43,14 +43,13 @@ export function ModelsSection({ app, plugin }: ModelsSectionProps) {
     modelId: string,
     value: boolean,
   ) => {
-    await setSettings({
-      ...settings,
-      chatModels: [...settings.chatModels].map((v) =>
+    const current = plugin.settings
+    await plugin.setSettings({
+      ...current,
+      chatModels: current.chatModels.map((v) =>
         v.model === modelId ? { ...v, enable: value } : v,
       ),
-      ...(!value && modelId === settings.chatModelId
-        ? { chatModelId: '' }
-        : {}),
+      ...(!value && modelId === current.chatModelId ? { chatModelId: '' } : {}),
     })
   }
 
@@ -80,7 +79,7 @@ export function ModelsSection({ app, plugin }: ModelsSectionProps) {
                 <td>{chatModel.providerId}</td>
                 <td>
                   <ObsidianToggle
-                    value={isEnabled(chatModel.enable)}
+                    value={isChatModelEnabled(chatModel)}
                     onChange={(value: boolean) =>
                       handleToggleEnableChatModel(chatModel.model, value)
                     }

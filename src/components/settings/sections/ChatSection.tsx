@@ -1,4 +1,5 @@
 import { useSettings } from '../../../contexts/settings-context'
+import { isChatModelEnabled } from '../../../utils/chat/chatModel'
 import { ObsidianDropdown } from '../../common/ObsidianDropdown'
 import { ObsidianNumberInput } from '../../common/ObsidianNumberInput'
 import { ObsidianSetting } from '../../common/ObsidianSetting'
@@ -16,7 +17,7 @@ export function ChatSection() {
           value={settings.chatModelId}
           options={Object.fromEntries(
             settings.chatModels
-              .filter(({ enable }) => enable ?? true)
+              .filter(isChatModelEnabled)
               .map((chatModel) => [chatModel.model, chatModel.model]),
           )}
           onChange={async (value) => {
