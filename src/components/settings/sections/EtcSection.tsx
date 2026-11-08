@@ -1,12 +1,8 @@
-import { App, Notice } from 'obsidian'
+import { App, Notice, normalizePath } from 'obsidian'
 
 import { useSettings } from '../../../contexts/settings-context'
-import {
-  CHAT_DIR,
-  CONTEXT_DIR,
-  ROOT_DIR,
-  TEMPLATE_DIR,
-} from '../../../database/constants'
+import { ROOT_DIR } from '../../../database/constants'
+import ZhinengchuangzuoPlugin from '../../../main'
 import { parseZhinengchuangzuoSettings } from '../../../settings/schema/settings'
 import { ObsidianButton } from '../../common/ObsidianButton'
 import { ObsidianSetting } from '../../common/ObsidianSetting'
@@ -14,9 +10,10 @@ import { ConfirmModal } from '../../modals/ConfirmModal'
 
 type EtcSectionProps = {
   app: App
+  plugin: ZhinengchuangzuoPlugin
 }
 
-export function EtcSection({ app }: EtcSectionProps) {
+export function EtcSection({ app, plugin }: EtcSectionProps) {
   const { setSettings } = useSettings()
 
   const handleResetSettings = () => {
@@ -25,25 +22,24 @@ export function EtcSection({ app }: EtcSectionProps) {
       message: '确定要还原所有设置，并删除所有数据吗？此操作无法撤销！',
       ctaText: '确定',
       onConfirm: async () => {
-        // 清除数据文件
-        const dataDirs = [CHAT_DIR, CONTEXT_DIR, TEMPLATE_DIR]
-        for (const dir of dataDirs) {
-          const dirPath = `${ROOT_DIR}/${dir}`
-          try {
-            if (await app.vault.adapter.exists(dirPath)) {
-              const files = await app.vault.adapter.list(dirPath)
-              for (const file of files.files) {
-                await app.vault.adapter.remove(file)
-              }
-            }
-          } catch (error) {
-            console.error(`Failed to clean up ${dir}`, error)
+        // Everything the plugin owns lives under user_data, config included.
+        try {
+          const userDataDir = normalizePath(ROOT_DIR)
+          if (await app.vault.adapter.exists(userDataDir)) {
+            await app.vault.adapter.rmdir(userDataDir, true)
           }
+        } catch (error) {
+          console.error('Failed to delete user data', error)
+          new Notice('Failed to delete user data, nothing was reset')
+          return
         }
 
-        // 重置配置
+        // Recreates the folder and a default config.json.
         const defaultSettings = parseZhinengchuangzuoSettings({})
         await setSettings(defaultSettings)
+
+        // Open views still hold the deleted data in memory.
+        plugin.emitDataReset()
         new Notice('Settings have been reset to their default values')
       },
     }).open()

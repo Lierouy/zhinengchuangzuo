@@ -24,6 +24,8 @@ export type RunCompletionParams = {
   /** Called with the latest snapshot whenever the assistant message changes. */
   onUpdate: (message: ChatAssistantMessage) => void
   onScroll?: () => void
+  /** Context prompt names to record on the assistant message, for diagnostics. */
+  activePrompts?: string[]
 }
 
 /**
@@ -38,6 +40,7 @@ export async function runCompletion({
   signal,
   onUpdate,
   onScroll,
+  activePrompts,
 }: RunCompletionParams): Promise<void> {
   try {
     if (request.stream) {
@@ -48,6 +51,7 @@ export async function runCompletion({
         signal,
         onUpdate,
         onScroll,
+        activePrompts,
       })
     } else {
       await runNonStreamingCompletion({
@@ -57,6 +61,7 @@ export async function runCompletion({
         signal,
         onUpdate,
         onScroll,
+        activePrompts,
       })
     }
   } catch (error) {
@@ -72,6 +77,7 @@ async function runStreamingCompletion({
   signal,
   onUpdate,
   onScroll,
+  activePrompts,
 }: Omit<RunCompletionParams, 'request'> & {
   request: LLMRequestStreaming
 }): Promise<void> {
@@ -93,6 +99,7 @@ async function runStreamingCompletion({
         metadata: {
           usage: { ...EMPTY_USAGE },
           model: model.model,
+          ...(activePrompts?.length ? { activePrompts } : {}),
         },
       }
     }
@@ -147,6 +154,7 @@ async function runNonStreamingCompletion({
   signal,
   onUpdate,
   onScroll,
+  activePrompts,
 }: Omit<RunCompletionParams, 'request'> & {
   request: LLMRequestNonStreaming
 }): Promise<void> {
@@ -170,6 +178,7 @@ async function runNonStreamingCompletion({
       // Same configured name the streaming path records; providers may echo an
       // internal model id in `response.model` instead.
       model: model.model,
+      ...(activePrompts?.length ? { activePrompts } : {}),
     },
   })
   onScroll?.()

@@ -89,6 +89,7 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
     getChatMessagesById,
     updateConversationTitle,
     chatList,
+    refreshChatList,
   } = useChatHistory()
 
   const contextManager = useContextManager()
@@ -361,6 +362,30 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
     }
   }, [chatList, handleLoadConversation])
 
+  // A full reset deletes every conversation, so drop the in-memory one too:
+  // keeping it would let the next save write the deleted conversation back.
+  useEffect(() => {
+    return plugin.onDataReset(() => {
+      abortActiveStreams()
+      setConversationState({
+        conversationId: crypto.randomUUID(),
+        chatMessages: [],
+      })
+      setInputMessage(getNewInputMessage(app))
+      setFocusedMessageId(null)
+      setCurrentPage(1)
+      highlightMentionable(null)
+      void refreshChatList()
+    })
+  }, [
+    plugin,
+    app,
+    abortActiveStreams,
+    refreshChatList,
+    setCurrentPage,
+    highlightMentionable,
+  ])
+
   // While a response is streaming, `chatMessages` changes on every token.
   // Serialising and comparing the whole conversation that often is pure
   // waste, so the save waits until the stream finishes.
@@ -475,7 +500,7 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
 
             <button
               onClick={() => {
-                new TemplateSectionModal(app).open()
+                new TemplateSectionModal(app, plugin).open()
               }}
               className="clickable-icon"
               aria-label="预设提示"

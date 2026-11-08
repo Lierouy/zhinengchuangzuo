@@ -11,7 +11,6 @@ import { ObsidianTextInput } from '../common/ObsidianTextInput'
 import { ReactModal } from '../common/ReactModal'
 
 type TemplateFormComponentProps = {
-  app: App
   templateId?: string
   onSubmit?: () => void
   onClose: () => void
@@ -23,7 +22,6 @@ export class CreateTemplateModal extends ReactModal<TemplateFormComponentProps> 
       app: app,
       Component: TemplateFormComponent,
       props: {
-        app,
         onSubmit,
       },
       options: {
@@ -47,7 +45,6 @@ export class EditTemplateModal extends ReactModal<TemplateFormComponentProps> {
       app: app,
       Component: TemplateFormComponent,
       props: {
-        app,
         templateId,
         onSubmit,
       },

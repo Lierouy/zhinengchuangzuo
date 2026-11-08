@@ -30,13 +30,7 @@ export type PromptGroup = {
   id: string
   name: string
   prompts: PromptItem[]
-  createdAt: number
-  updatedAt: number
-  schemaVersion: number
 }
 
-export type PromptGroupMetadata = {
-  id: string
-  name: string
-  schemaVersion: number
-}
+/** The list view only needs the fields stored on the index card. */
+export type PromptGroupMetadata = PromptGroupIndexEntry

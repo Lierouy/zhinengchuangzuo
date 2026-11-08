@@ -1,3 +1,4 @@
+import isEqual from 'lodash.isequal'
 import {
   Editor,
   MarkdownFileInfo,
@@ -20,10 +21,25 @@ import { ZhinengchuangzuoSettingTab } from './settings/SettingTab'
 import { MentionableBlockData } from './types/mentionable'
 import { ensureFolderExists, getMentionableBlockData } from './utils/obsidian'
 
+const arrayLength = (value: unknown): number =>
+  Array.isArray(value) ? value.length : 0
+
+/** True when parsing replaced a non-empty provider/model list with an empty one. */
+function lostSettingsEntries(
+  raw: Record<string, unknown>,
+  parsed: ZhinengchuangzuoSettings,
+): boolean {
+  return (
+    (arrayLength(raw.providers) > 0 && parsed.providers.length === 0) ||
+    (arrayLength(raw.chatModels) > 0 && parsed.chatModels.length === 0)
+  )
+}
+
 export default class ZhinengchuangzuoPlugin extends Plugin {
   override settings!: ZhinengchuangzuoSettings
   settingsChangeListeners: ((newSettings: ZhinengchuangzuoSettings) => void)[] =
     []
+  private dataResetListeners: (() => void)[] = []
   handleInProgress = false
 
   private get settingsFilePath(): string {
@@ -67,14 +83,25 @@ export default class ZhinengchuangzuoPlugin extends Plugin {
   }
 
   // Save settings in user_data folder instead of plugin root
-  override async loadData(): Promise<Record<string, unknown>> {
+  /** Raw settings file, or `null` when it does not exist. Throws on bad JSON. */
+  private async readSettingsFile(): Promise<Record<string, unknown> | null> {
     const filePath = this.settingsFilePath
+    if (!(await this.app.vault.adapter.exists(filePath))) return null
+    const content = await this.app.vault.adapter.read(filePath)
+    return JSON.parse(content) as Record<string, unknown>
+  }
+
+  /** Keeps the previous file so normalization can never destroy it silently. */
+  private async backupSettingsFile(): Promise<void> {
+    const filePath = this.settingsFilePath
+    if (!(await this.app.vault.adapter.exists(filePath))) return
+    const content = await this.app.vault.adapter.read(filePath)
+    await this.app.vault.adapter.write(`${filePath}.bak`, content)
+  }
+
+  override async loadData(): Promise<Record<string, unknown>> {
     try {
-      if (!(await this.app.vault.adapter.exists(filePath))) {
-        return {}
-      }
-      const content = await this.app.vault.adapter.read(filePath)
-      return JSON.parse(content) as Record<string, unknown>
+      return (await this.readSettingsFile()) ?? {}
     } catch (e) {
       console.error('Failed to load settings', e)
       return {}
@@ -90,9 +117,51 @@ export default class ZhinengchuangzuoPlugin extends Plugin {
     await this.app.vault.adapter.write(filePath, content)
   }
 
+  /**
+   * Loads and normalizes the settings. The file is only rewritten when parsing
+   * actually changed something, and never without keeping a backup first: the
+   * schema replaces invalid arrays wholesale, so an unconditional write could
+   * silently drop providers or models.
+   */
   async loadSettings() {
-    this.settings = parseZhinengchuangzuoSettings(await this.loadData())
-    await this.saveData(this.settings) // Save updated settings
+    let raw: Record<string, unknown> | null = null
+    let unreadable = false
+    try {
+      raw = await this.readSettingsFile()
+    } catch (error) {
+      unreadable = true
+      console.error('Failed to parse settings', error)
+    }
+
+    const parsed = parseZhinengchuangzuoSettings(raw ?? {})
+    this.settings = parsed
+
+    if (unreadable) {
+      await this.backupSettingsFile()
+      await this.saveData(parsed)
+      new Notice(
+        'The settings file could not be read, backup was saved as config.json.bak',
+      )
+      return
+    }
+
+    // First run: create the file so it is easy to find and edit.
+    if (raw === null) {
+      await this.saveData(parsed)
+      return
+    }
+
+    // Key order is irrelevant: only a real change should touch the file.
+    if (isEqual(parsed, raw)) return
+
+    await this.backupSettingsFile()
+    await this.saveData(parsed)
+
+    if (lostSettingsEntries(raw, parsed)) {
+      new Notice(
+        'Providers or models could not be read and were reset, backup was saved as config.json.bak',
+      )
+    }
   }
 
   async setSettings(newSettings: ZhinengchuangzuoSettings) {
@@ -118,6 +187,27 @@ ${validationResult.error.issues.map((v) => v.message).join('\n')}`)
       this.settingsChangeListeners = this.settingsChangeListeners.filter(
         (l) => l !== listener,
       )
+    }
+  }
+
+  /** Subscribes to the "all user data was deleted" reset. */
+  onDataReset(listener: () => void): () => void {
+    this.dataResetListeners.push(listener)
+    return () => {
+      this.dataResetListeners = this.dataResetListeners.filter(
+        (l) => l !== listener,
+      )
+    }
+  }
+
+  /** Tells open views that their cached data no longer exists on disk. */
+  emitDataReset(): void {
+    for (const listener of [...this.dataResetListeners]) {
+      try {
+        listener()
+      } catch (error) {
+        console.error('Data reset listener failed', error)
+      }
     }
   }
 

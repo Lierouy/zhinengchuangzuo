@@ -84,10 +84,18 @@ export class TemplateManager extends AbstractJsonRepository<Template, string> {
     )
   }
 
+  /**
+   * The cached file list is verified against the directory on every access:
+   * files deleted or added outside this manager (a data reset, sync, external
+   * edits) must never be served from memory. Only the bodies are cached.
+   */
   private async loadCache(): Promise<Template[]> {
-    if (templateCache) return templateCache
-
     const files = await this.listMetadata()
+    const fileNames = files.map((file) => file.fileName).sort()
+    if (templateCache && this.matchesFiles(templateCache, fileNames)) {
+      return templateCache
+    }
+
     const loaded = await Promise.all(
       files.map((item) => this.read(item.fileName)),
     )
@@ -116,18 +124,23 @@ export class TemplateManager extends AbstractJsonRepository<Template, string> {
     return templates
   }
 
+  /** File names are derived from ids, so they are enough to detect changes. */
+  private matchesFiles(templates: Template[], fileNames: string[]): boolean {
+    if (templates.length !== fileNames.length) return false
+    const cached = templates.map((template) => this.generateFileName(template))
+    cached.sort()
+    return cached.every((fileName, index) => fileName === fileNames[index])
+  }
+
   private async replaceCache(templates: Template[]): Promise<void> {
     templateCache = templates
     await this.writeIndexOrder(templates.map((template) => template.id))
   }
 
   public async createTemplate(
-    template: Omit<
-      Template,
-      'id' | 'sortOrder' | 'createdAt' | 'updatedAt' | 'schemaVersion'
-    >,
+    template: Omit<Template, 'id' | 'sortOrder'>,
   ): Promise<Template> {
-    if (template.name !== undefined && template.name.length === 0) {
+    if (template.name.trim().length === 0) {
       throw emptyTemplateName()
     }
 
@@ -140,13 +153,11 @@ export class TemplateManager extends AbstractJsonRepository<Template, string> {
       id: crypto.randomUUID(),
       ...template,
       sortOrder: Date.now(),
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      schemaVersion: TEMPLATE_SCHEMA_VERSION,
     }
 
     await this.create(newTemplate)
-    await this.replaceCache([...(await this.loadCache()), newTemplate])
+    // `loadCache` re-lists the directory, so the new file is already included.
+    await this.replaceCache(await this.loadCache())
     return newTemplate
   }
 
@@ -162,11 +173,9 @@ export class TemplateManager extends AbstractJsonRepository<Template, string> {
 
   public async updateTemplate(
     id: string,
-    updates: Partial<
-      Omit<Template, 'id' | 'createdAt' | 'updatedAt' | 'schemaVersion'>
-    >,
+    updates: Partial<Omit<Template, 'id'>>,
   ): Promise<Template | null> {
-    if (updates.name !== undefined && updates.name.length === 0) {
+    if (updates.name !== undefined && updates.name.trim().length === 0) {
       throw emptyTemplateName()
     }
 
@@ -183,7 +192,6 @@ export class TemplateManager extends AbstractJsonRepository<Template, string> {
     const updatedTemplate: Template = {
       ...template,
       ...updates,
-      updatedAt: Date.now(),
     }
 
     await this.update(template, updatedTemplate)
@@ -209,11 +217,9 @@ export class TemplateManager extends AbstractJsonRepository<Template, string> {
 
   public async listTemplates(): Promise<TemplateMetadata[]> {
     const templates = await this.loadCache()
-    return templates.map((template, index) => ({
+    return templates.map((template) => ({
       id: template.id,
       name: template.name,
-      sortOrder: index,
-      schemaVersion: template.schemaVersion,
     }))
   }
 

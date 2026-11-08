@@ -1,9 +1,9 @@
-import { App } from 'obsidian'
 import { useEffect, useMemo, useState } from 'react'
 
 import { useSettings } from '../../../contexts/settings-context'
 import { TemplateMetadata } from '../../../database/template/types'
 import { useTemplateManager } from '../../../hooks/useJsonManagers'
+import ZhinengchuangzuoPlugin from '../../../main'
 import { ObsidianDropdown } from '../../common/ObsidianDropdown'
 import { ObsidianNumberInput } from '../../common/ObsidianNumberInput'
 import { ObsidianSetting } from '../../common/ObsidianSetting'
@@ -11,11 +11,14 @@ import { ObsidianSetting } from '../../common/ObsidianSetting'
 const isPositive = (n: number) => n > 0
 
 type HandleSectionProps = {
-  app: App
+  plugin: ZhinengchuangzuoPlugin
   showRequired?: boolean
 }
 
-export function HandleSection({ showRequired = false }: HandleSectionProps) {
+export function HandleSection({
+  plugin,
+  showRequired = false,
+}: HandleSectionProps) {
   const { settings, setSettings } = useSettings()
   const templateManager = useTemplateManager()
   const [templateList, setTemplateList] = useState<TemplateMetadata[]>([])
@@ -23,6 +26,13 @@ export function HandleSection({ showRequired = false }: HandleSectionProps) {
   useEffect(() => {
     void templateManager.listTemplates().then(setTemplateList)
   }, [templateManager])
+
+  // A reset deletes every template file, so reload the list for the dropdown.
+  useEffect(() => {
+    return plugin.onDataReset(() => {
+      void templateManager.listTemplates().then(setTemplateList)
+    })
+  }, [plugin, templateManager])
 
   const templateOptions = useMemo(() => {
     return Object.fromEntries(templateList.map((t) => [t.id, t.name]))

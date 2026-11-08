@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { TemplateMetadata } from '../../../database/template/types'
 import { useTemplateManager } from '../../../hooks/useJsonManagers'
+import ZhinengchuangzuoPlugin from '../../../main'
 import { ConfirmModal } from '../../modals/ConfirmModal'
 import {
   CreateTemplateModal,
@@ -12,9 +13,10 @@ import {
 
 type TemplateSectionProps = {
   app: App
+  plugin: ZhinengchuangzuoPlugin
 }
 
-export function TemplateSection({ app }: TemplateSectionProps) {
+export function TemplateSection({ app, plugin }: TemplateSectionProps) {
   const templateManager = useTemplateManager()
 
   const [templateList, setTemplateList] = useState<TemplateMetadata[]>([])
@@ -97,6 +99,13 @@ export function TemplateSection({ app }: TemplateSectionProps) {
   useEffect(() => {
     void fetchTemplateList()
   }, [fetchTemplateList])
+
+  // A reset deletes every template file, so reload the table.
+  useEffect(() => {
+    return plugin.onDataReset(() => {
+      void fetchTemplateList()
+    })
+  }, [plugin, fetchTemplateList])
 
   return (
     <div className="zncz-settings-section">

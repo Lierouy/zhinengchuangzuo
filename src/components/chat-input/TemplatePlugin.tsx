@@ -3,6 +3,7 @@ import { clsx } from 'clsx'
 import {
   $createParagraphNode,
   $createTextNode,
+  $insertNodes,
   COMMAND_PRIORITY_NORMAL,
   LexicalEditor,
   TextNode,
@@ -147,7 +148,7 @@ export default function TemplatePlugin() {
         const content = selectedOption.template.content
         // 按 \n 拆分为多个段落，避免换行符嵌入单个 TextNode 导致编辑时滚动跳动
         const lines = content.split('\n')
-        if (nodeToRemove && lines.length > 0) {
+        if (nodeToRemove) {
           // 第一行：直接替换 /xxx 文本内容，不改变 DOM 结构，彻底避免段落嵌套
           nodeToRemove.setTextContent(lines[0])
           // 其余行：作为独立段落插入到当前段落后方
@@ -164,6 +165,16 @@ export default function TemplatePlugin() {
             }
             prevNode.getLastDescendant()?.selectEnd()
           }
+        } else {
+          // Nothing to replace (the trigger text is already gone), so insert the
+          // template at the selection instead of dropping the click silently.
+          $insertNodes(
+            lines.map((line) => {
+              const paragraph = $createParagraphNode()
+              paragraph.append($createTextNode(line))
+              return paragraph
+            }),
+          )
         }
         closeMenu()
       })

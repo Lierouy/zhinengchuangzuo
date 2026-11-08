@@ -4,14 +4,16 @@ import { editorStateToPlainText } from '../../components/chat-input/editor-state
 import { ContextManager } from '../../database/context/ContextManager'
 import { PromptItem } from '../../database/context/types'
 import { ZhinengchuangzuoSettings } from '../../settings/schema/setting.types'
-import {
-  ChatAssistantMessage,
-  ChatMessage,
-  ChatUserMessage,
-} from '../../types/chat'
+import { ChatMessage, ChatUserMessage } from '../../types/chat'
 import { MentionableBlock, MentionableImage } from '../../types/mentionable'
 import { ContentPart, RequestMessage } from '../../types/request'
 import { getFolderMarkdownFiles, readMultipleTFiles } from '../obsidian'
+
+export type GeneratedRequest = {
+  messages: RequestMessage[]
+  /** Names of the context prompts activated for this request. */
+  activePrompts: string[]
+}
 
 export class PromptGenerator {
   private app: App
@@ -37,7 +39,7 @@ export class PromptGenerator {
   }: {
     messages: ChatMessage[]
     contextCount?: number
-  }): Promise<RequestMessage[]> {
+  }): Promise<GeneratedRequest> {
     // Determine how many past messages to include
     const take =
       typeof contextCount === 'number'
@@ -56,7 +58,6 @@ export class PromptGenerator {
         break
       }
     }
-    let matchingText = ''
 
     const lastUserMsg =
       lastUserIndex >= 0
@@ -70,6 +71,10 @@ export class PromptGenerator {
         ? currentFileRaw
         : undefined
 
+    // Keyword matching always looks at the newest user turn, even when it was
+    // already compiled by the submit handler beforehand.
+    const matchingText = lastUserMsg ? this.getMatchingText(lastUserMsg) : ''
+
     // Collect user message indices for sequential compilation (newest → oldest)
     const userIndices: number[] = []
     for (let i = 0; i < relevantMessages.length; i++) {
@@ -81,35 +86,41 @@ export class PromptGenerator {
     // Compile user messages sequentially: newest first so seenFiles tracks correctly
     const compiledMessages = [...relevantMessages]
     const seenFiles = new Set<string>()
+
+    // A message compiled by an earlier request already carries its attachments,
+    // so its files count as included for cross-message dedup.
+    for (const message of relevantMessages) {
+      if (message.role === 'user' && message.promptContent) {
+        this.addMentionedPaths(message, seenFiles)
+      }
+    }
+
     for (let idx = userIndices.length - 1; idx >= 0; idx--) {
       const i = userIndices[idx]
       const msg = compiledMessages[i] as ChatUserMessage
       if (!msg.promptContent) {
         const isLatest = idx === userIndices.length - 1
-        const { promptContent, matchingText: mt } =
-          await this.compileUserMessagePrompt({
-            message: msg,
-            currentFile: isLatest ? currentFile : undefined,
-            seenFiles,
-            isLatest,
-          })
-        if (isLatest) {
-          matchingText = mt
-        }
+        const { promptContent } = await this.compileUserMessagePrompt({
+          message: msg,
+          currentFile: isLatest ? currentFile : undefined,
+          seenFiles,
+          isLatest,
+        })
         compiledMessages[i] = { ...msg, promptContent }
       }
     }
 
-    const systemMessage = await this.getSystemMessage({ matchingText })
+    const system = await this.getSystemMessage({ matchingText })
 
-    const requestMessages: RequestMessage[] = [
-      ...(systemMessage ? [systemMessage] : []),
-      ...this.getChatHistoryMessages({
-        messages: compiledMessages,
-      }),
-    ]
-
-    return requestMessages
+    return {
+      messages: [
+        ...(system ? [system.message] : []),
+        ...this.getChatHistoryMessages({
+          messages: compiledMessages,
+        }),
+      ],
+      activePrompts: system?.activePrompts ?? [],
+    }
   }
 
   private getChatHistoryMessages({
@@ -130,7 +141,7 @@ export class PromptGenerator {
           }
           return [{ role: 'user', content }]
         } else if (message.role === 'assistant') {
-          return this.parseAssistantMessage({ message })
+          return [{ role: 'assistant', content: message.content }]
         }
         return []
       },
@@ -139,17 +150,38 @@ export class PromptGenerator {
     return requestMessages
   }
 
-  private parseAssistantMessage({
-    message,
-  }: {
-    message: ChatAssistantMessage
-  }): RequestMessage[] {
-    return [
-      {
-        role: 'assistant',
-        content: message.content,
-      },
-    ]
+  /** Text used for keyword matching: user input plus the selected blocks. */
+  private getMatchingText(message: ChatUserMessage): string {
+    const blocks = message.mentionables.filter(
+      (m): m is MentionableBlock => m.type === 'block',
+    )
+    const query = message.content ? editorStateToPlainText(message.content) : ''
+    return `${blocks.map((b) => b.content).join('\n')}\n${query}`
+  }
+
+  /** Marks the attachments of `message` as already included in the request. */
+  private addMentionedPaths(message: ChatUserMessage, seen: Set<string>): void {
+    for (const mentionable of message.mentionables) {
+      if (mentionable.type === 'file') {
+        // Only a resolvable file was actually included in that request.
+        if (this.app.vault.getFileByPath(mentionable.path)) {
+          seen.add(mentionable.path)
+        }
+      } else if (mentionable.type === 'folder') {
+        if (!mentionable.folder) continue
+        for (const file of getFolderMarkdownFiles(mentionable.folder)) {
+          seen.add(file.path)
+        }
+      } else if (mentionable.type === 'current-file') {
+        // The current file is only part of the prompt when the setting is on.
+        if (
+          this.settings.chatOptions.includeCurrentFileContent &&
+          mentionable.file
+        ) {
+          seen.add(mentionable.file.path)
+        }
+      }
+    }
   }
 
   public async compileUserMessagePrompt({
@@ -164,13 +196,11 @@ export class PromptGenerator {
     isLatest: boolean
   }): Promise<{
     promptContent: ChatUserMessage['promptContent']
-    matchingText: string
   }> {
     try {
       if (!message.content) {
         return {
           promptContent: null,
-          matchingText: '',
         }
       }
       const query = editorStateToPlainText(message.content)
@@ -319,9 +349,6 @@ export class PromptGenerator {
         .filter((m): m is MentionableImage => m.type === 'image')
         .map(({ data }) => data)
 
-      // 匹配文本 = 用户输入 + 选中块（不包含 filePrompt 和 currentFile 内容）
-      const matchingText = `${blocks.map((b) => b.content).join('\n')}\n${query}`
-
       const textParts = [
         currentFile && currentFileContent
           ? `<file type="用户正在浏览">\n<path>${currentFile.path}</path>\n<body>\n${currentFileContent}\n</body>\n</file>\n`
@@ -344,7 +371,6 @@ export class PromptGenerator {
             text: textParts.join('\n'),
           },
         ],
-        matchingText,
       }
     } catch (error) {
       console.error('Failed to compile user message', error)
@@ -356,7 +382,7 @@ export class PromptGenerator {
     matchingText,
   }: {
     matchingText: string
-  }): Promise<RequestMessage | null> {
+  }): Promise<{ message: RequestMessage; activePrompts: string[] } | null> {
     const { selectedPromptGroupId } = this.settings
     if (!selectedPromptGroupId) return null
 
@@ -376,7 +402,7 @@ export class PromptGenerator {
         chain.add(targetId)
         const target = prompts.find((p) => p.id === targetId)
         // 目标必须启用 且 开启了条件激活（始终激活的提示由主循环处理，无需连带）
-        if (!target?.enabled || !target?.conditionalActivation) return
+        if (target?.enabled === false || !target?.conditionalActivation) return
         activatedIds.add(target.id)
         // 连带激活继续传递
         if (target.chainActivation) {
@@ -385,7 +411,7 @@ export class PromptGenerator {
       }
 
       for (const item of prompts) {
-        if (!item.enabled) continue
+        if (item.enabled === false) continue
         if (activatedIds.has(item.id)) continue
 
         if (this.isPromptActivated(item, matchingText)) {
@@ -400,21 +426,24 @@ export class PromptGenerator {
 
       // 第二步：按 prompts 原始顺序拼接，受激活提示上限约束
       const limit = this.settings.promptActivationLimit ?? 50
-      let activatedContents = prompts
+      let activated = prompts
         .filter((p) => activatedIds.has(p.id))
-        .map((p) => p.content.trim())
-        .filter((c) => c.length > 0)
+        .map((p) => ({ name: p.name, content: p.content.trim() }))
+        .filter((p) => p.content.length > 0)
 
       // 超出上限时，排除靠后的提示（即截断末尾）
-      if (limit > 0 && activatedContents.length > limit) {
-        activatedContents = activatedContents.slice(0, limit)
+      if (limit > 0 && activated.length > limit) {
+        activated = activated.slice(0, limit)
       }
 
-      if (activatedContents.length === 0) return null
+      if (activated.length === 0) return null
 
       return {
-        role: 'system',
-        content: activatedContents.join('\n'),
+        message: {
+          role: 'system',
+          content: activated.map((p) => p.content).join('\n'),
+        },
+        activePrompts: activated.map((p) => p.name),
       }
     } catch (error) {
       console.error('Failed to load context prompts', error)

@@ -78,12 +78,40 @@ export class ChatManager extends AbstractJsonRepository<
         parsed.schemaVersion === CHAT_INDEX_SCHEMA_VERSION &&
         Array.isArray(parsed.chats)
       ) {
-        return parsed.chats
+        return this.reconcileIndex(parsed.chats)
       }
     } catch {
       // Missing or unreadable card - fall through and rebuild it.
     }
     return this.rebuildIndex()
+  }
+
+  /**
+   * Keeps the index in sync with the conversation files, so chats added,
+   * deleted or restored outside the plugin do not become ghosts or stay
+   * invisible. The stored order is preserved and new entries are appended.
+   */
+  private async reconcileIndex(
+    stored: ChatIndexEntry[],
+  ): Promise<ChatIndexEntry[]> {
+    const files = await this.listMetadata()
+    const byId = new Map(files.map((item) => [item.metadata, item.fileName]))
+    const kept = stored.filter((entry) => byId.has(entry.id))
+    if (kept.length === files.length) return kept
+
+    const known = new Set(kept.map((entry) => entry.id))
+    const added: ChatIndexEntry[] = []
+    for (const [id, fileName] of byId) {
+      if (known.has(id)) continue
+      const chat = await this.read(fileName)
+      if (!chat) continue
+      added.push(toIndexEntry(chat))
+      known.add(id)
+    }
+
+    const next = [...kept, ...added]
+    await this.writeIndex(next)
+    return next
   }
 
   private async writeIndex(chats: ChatIndexEntry[]): Promise<void> {

@@ -6,14 +6,10 @@ import { ReactModal } from '../common/ReactModal'
 import { HandleSection } from '../settings/sections/HandleSection'
 
 type HandleSectionModalContentProps = {
-  app: App
   plugin: ZhinengchuangzuoPlugin
 }
 
-function HandleSectionModalContent({
-  app,
-  plugin,
-}: HandleSectionModalContentProps) {
+function HandleSectionModalContent({ plugin }: HandleSectionModalContentProps) {
   return (
     <SettingsProvider
       settings={plugin.settings}
@@ -22,23 +18,17 @@ function HandleSectionModalContent({
         plugin.addSettingsChangeListener(listener)
       }
     >
-      <HandleSection app={app} showRequired={true} />
+      <HandleSection plugin={plugin} showRequired={true} />
     </SettingsProvider>
   )
 }
 
-type HandleSectionModalProps = {
-  app: App
-  plugin: ZhinengchuangzuoPlugin
-}
-
-export class HandleSectionModal extends ReactModal<HandleSectionModalProps> {
+export class HandleSectionModal extends ReactModal<HandleSectionModalContentProps> {
   constructor(app: App, plugin: ZhinengchuangzuoPlugin) {
     super({
       app: app,
       Component: HandleSectionModalContent,
       props: {
-        app,
         plugin,
       },
     })

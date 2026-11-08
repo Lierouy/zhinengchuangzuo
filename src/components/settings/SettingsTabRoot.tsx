@@ -21,10 +21,10 @@ export function SettingsTabRoot({ app, plugin }: SettingsTabRootProps) {
       <ProvidersSection app={app} plugin={plugin} />
       <ModelsSection app={app} plugin={plugin} />
       <ChatSection />
-      <HandleSection app={app} />
-      <TemplateSection app={app} />
+      <HandleSection plugin={plugin} />
+      <TemplateSection app={app} plugin={plugin} />
       <ContextManagementSection app={app} plugin={plugin} />
-      <EtcSection app={app} />
+      <EtcSection app={app} plugin={plugin} />
     </>
   )
 }

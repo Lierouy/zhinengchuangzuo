@@ -33,6 +33,8 @@ type UseChatHistory = {
   getChatMessagesById: (id: string) => Promise<ChatMessage[] | null>
   updateConversationTitle: (id: string, title: string) => Promise<void>
   chatList: ChatConversationMetadata[]
+  /** Re-reads the conversation list from disk. */
+  refreshChatList: () => Promise<void>
 }
 
 type DebouncedSave = {
@@ -216,6 +218,7 @@ export function useChatHistory(): UseChatHistory {
     getChatMessagesById,
     updateConversationTitle,
     chatList,
+    refreshChatList: fetchChatList,
   }
 }
 
@@ -226,7 +229,7 @@ const serializeChatMessage = (message: ChatMessage): SerializedChatMessage => {
         role: 'user',
         // Editor state is kept in full in memory and only trimmed here, at save time.
         content: message.content ? cleanupEditorState(message.content) : null,
-        promptContent: message.promptContent, // 已经是 null 了
+        promptContent: null, // compiled per request; persisting it would store file bodies and image data
         id: message.id,
         mentionables: message.mentionables.map(serializeMentionable),
       }

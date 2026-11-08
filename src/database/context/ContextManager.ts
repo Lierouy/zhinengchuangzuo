@@ -61,12 +61,39 @@ export class ContextManager extends AbstractJsonRepository<
         parsed.schemaVersion === CONTEXT_INDEX_SCHEMA_VERSION &&
         Array.isArray(parsed.groups)
       ) {
-        return parsed.groups
+        return this.reconcileIndex(parsed.groups)
       }
     } catch {
       // Missing or unreadable card - fall through and rebuild it.
     }
     return this.rebuildIndex()
+  }
+
+  /**
+   * Keeps the index in sync with the files on disk while preserving the stored
+   * order: entries without a file are dropped, new files are appended.
+   */
+  private async reconcileIndex(
+    stored: PromptGroupIndexEntry[],
+  ): Promise<PromptGroupIndexEntry[]> {
+    const files = await this.listMetadata()
+    const byId = new Map(files.map((item) => [item.metadata, item.fileName]))
+    const kept = stored.filter((entry) => byId.has(entry.id))
+    if (kept.length === files.length) return kept
+
+    const known = new Set(kept.map((entry) => entry.id))
+    const added: PromptGroupIndexEntry[] = []
+    for (const [id, fileName] of byId) {
+      if (known.has(id)) continue
+      const group = await this.read(fileName)
+      if (!group) continue
+      added.push(toIndexEntry(group))
+      known.add(id)
+    }
+
+    const next = [...kept, ...added]
+    await this.writeIndex(next)
+    return next
   }
 
   private async writeIndex(groups: PromptGroupIndexEntry[]): Promise<void> {
@@ -93,10 +120,22 @@ export class ContextManager extends AbstractJsonRepository<
     return entries
   }
 
-  private async upsertIndexEntry(group: PromptGroup): Promise<void> {
+  /**
+   * Keeps the index in sync. Unlike a blind upsert this preserves the existing
+   * order and skips the write when the entry is unchanged (e.g. editing prompts).
+   */
+  private async updateIndexEntry(group: PromptGroup): Promise<void> {
     const groups = await this.readIndex()
     const entry = toIndexEntry(group)
-    await this.writeIndex([entry, ...groups.filter((g) => g.id !== entry.id)])
+    const index = groups.findIndex((candidate) => candidate.id === entry.id)
+    if (index === -1) {
+      await this.writeIndex([entry, ...groups])
+      return
+    }
+    if (groups[index].name === entry.name) return
+    const next = [...groups]
+    next[index] = entry
+    await this.writeIndex(next)
   }
 
   private async removeIndexEntry(id: string): Promise<void> {
@@ -106,11 +145,29 @@ export class ContextManager extends AbstractJsonRepository<
     await this.writeIndex(remaining)
   }
 
+  /**
+   * Fills in fields added after a group was written, so older files keep
+   * working instead of being treated as disabled. Also drops fields that are no
+   * longer part of the schema.
+   */
+  private normalizeGroup(group: PromptGroup): PromptGroup {
+    return {
+      id: group.id,
+      name: group.name,
+      prompts: (group.prompts ?? []).map((prompt) => ({
+        ...prompt,
+        enabled: prompt.enabled !== false,
+        conditionalActivation: prompt.conditionalActivation === true,
+        keywords: prompt.keywords ?? [],
+        filterWords: prompt.filterWords ?? [],
+        filterLogic: prompt.filterLogic ?? 'AND_ANY',
+        chainActivation: prompt.chainActivation ?? null,
+      })),
+    }
+  }
+
   public async createGroup(
-    group: Omit<
-      PromptGroup,
-      'id' | 'createdAt' | 'updatedAt' | 'schemaVersion'
-    >,
+    group: Omit<PromptGroup, 'id'>,
   ): Promise<PromptGroup> {
     // 检查是否与已有组重名
     const duplicate = await this.findGroupByName(group.name)
@@ -121,19 +178,17 @@ export class ContextManager extends AbstractJsonRepository<
     const newGroup: PromptGroup = {
       id: crypto.randomUUID(),
       ...group,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      schemaVersion: CONTEXT_SCHEMA_VERSION,
     }
 
     await this.create(newGroup)
-    await this.upsertIndexEntry(newGroup)
+    await this.updateIndexEntry(newGroup)
     return newGroup
   }
 
   public async findById(id: string): Promise<PromptGroup | null> {
     const fileName = `v${CONTEXT_SCHEMA_VERSION}_${id}.json`
-    return this.read(fileName)
+    const group = await this.read(fileName)
+    return group ? this.normalizeGroup(group) : null
   }
 
   public async findGroupByName(name: string): Promise<PromptGroup | null> {
@@ -146,9 +201,7 @@ export class ContextManager extends AbstractJsonRepository<
 
   public async updateGroup(
     id: string,
-    updates: Partial<
-      Omit<PromptGroup, 'id' | 'createdAt' | 'updatedAt' | 'schemaVersion'>
-    >,
+    updates: Partial<Omit<PromptGroup, 'id'>>,
   ): Promise<PromptGroup | null> {
     const group = await this.findById(id)
     if (!group) return null
@@ -164,11 +217,10 @@ export class ContextManager extends AbstractJsonRepository<
     const updatedGroup: PromptGroup = {
       ...group,
       ...updates,
-      updatedAt: Date.now(),
     }
 
     await this.update(group, updatedGroup)
-    await this.upsertIndexEntry(updatedGroup)
+    await this.updateIndexEntry(updatedGroup)
     return updatedGroup
   }
 
@@ -185,11 +237,7 @@ export class ContextManager extends AbstractJsonRepository<
   }
 
   public async listGroups(): Promise<PromptGroupMetadata[]> {
-    const groups = await this.readIndex()
-    return groups.map((group) => ({
-      ...group,
-      schemaVersion: CONTEXT_SCHEMA_VERSION,
-    }))
+    return this.readIndex()
   }
 
   public async addPromptItem(
@@ -253,7 +301,13 @@ export class ContextManager extends AbstractJsonRepository<
     const index = group.prompts.findIndex((p) => p.id === itemId)
     if (index === -1) return false
 
-    const updatedPrompts = group.prompts.filter((p) => p.id !== itemId)
+    // Drop the item and clear every chain that pointed at it, so no prompt is
+    // left with a dangling activation target.
+    const updatedPrompts = group.prompts
+      .filter((p) => p.id !== itemId)
+      .map((p) =>
+        p.chainActivation === itemId ? { ...p, chainActivation: null } : p,
+      )
     await this.updateGroup(groupId, { prompts: updatedPrompts })
     return true
   }

@@ -11,15 +11,19 @@ export type ChatUserMessage = {
   id: string
   mentionables: Mentionable[]
 }
+export type ChatAssistantMetadata = {
+  usage?: ResponseUsage
+  model?: string
+  /** Names of the context prompts that were activated for this request. */
+  activePrompts?: string[]
+}
+
 export type ChatAssistantMessage = {
   role: 'assistant'
   content: string
   reasoning?: string
   id: string
-  metadata?: {
-    usage?: ResponseUsage
-    model?: string
-  }
+  metadata?: ChatAssistantMetadata
 }
 
 export type ChatMessage = ChatUserMessage | ChatAssistantMessage
@@ -39,10 +43,7 @@ export type SerializedChatAssistantMessage = {
   content: string
   reasoning?: string
   id: string
-  metadata?: {
-    usage?: ResponseUsage
-    model?: string
-  }
+  metadata?: ChatAssistantMetadata
 }
 export type SerializedChatMessage =
   SerializedChatUserMessage | SerializedChatAssistantMessage

@@ -17,6 +17,10 @@ export class ZhinengchuangzuoSettingTab extends PluginSettingTab {
 
   override display(): void {
     const { containerEl } = this
+    // `display()` can run again without a preceding `hide()`, which would leave
+    // the previous React tree mounted on a detached container with its
+    // listeners still attached.
+    this.hide()
     containerEl.empty()
 
     this.root = createRoot(containerEl)

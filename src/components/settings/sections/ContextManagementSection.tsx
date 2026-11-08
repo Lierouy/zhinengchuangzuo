@@ -69,33 +69,26 @@ export function ContextManagementSection({
     )
   }, [fetchGroupList, fetchCurrentPrompts])
 
+  // The reset deletes every prompt group on disk.
+  useEffect(() => {
+    return plugin.onDataReset(() => {
+      setIsLoading(true)
+      void Promise.all([fetchGroupList(), fetchCurrentPrompts()]).finally(() =>
+        setIsLoading(false),
+      )
+    })
+  }, [plugin, fetchGroupList, fetchCurrentPrompts])
+
   const handleOpenManageModal = useCallback(() => {
     new PromptGroupManageModal({
       app,
       plugin,
       onSubmit: async () => {
-        await fetchGroupList()
-        // If the selected group was deleted, clear selection
-        const groups = await contextManager.listGroups()
-        if (selectedGroupId && !groups.some((g) => g.id === selectedGroupId)) {
-          await setSettings({
-            ...settings,
-            selectedPromptGroupId: '',
-          })
-        }
-        await fetchCurrentPrompts()
+        // The modal clears the selection itself when the selected group is deleted.
+        await Promise.all([fetchGroupList(), fetchCurrentPrompts()])
       },
     }).open()
-  }, [
-    app,
-    plugin,
-    fetchGroupList,
-    fetchCurrentPrompts,
-    selectedGroupId,
-    settings,
-    setSettings,
-    contextManager,
-  ])
+  }, [app, plugin, fetchGroupList, fetchCurrentPrompts])
 
   const handleSelectGroup = useCallback(
     async (value: string) => {

@@ -5,15 +5,11 @@ export type Template = {
   id: string
   name: string
   content: string
+  /** Kept as a tie-break when the order sidecar is missing. */
   sortOrder: number
-  createdAt: number
-  updatedAt: number
-  schemaVersion: number
 }
 
 export type TemplateMetadata = {
   id: string
   name: string
-  sortOrder: number
-  schemaVersion: number
 }

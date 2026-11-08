@@ -105,10 +105,11 @@ export function useChatStreamManager({
           [],
         )
 
-        const requestMessages = await promptGenerator.generateRequestMessages({
-          messages: chatMessages,
-          contextCount: settings.contextCount,
-        })
+        const { messages: requestMessages, activePrompts } =
+          await promptGenerator.generateRequestMessages({
+            messages: chatMessages,
+            contextCount: settings.contextCount,
+          })
 
         baseRequest.messages = requestMessages
 
@@ -117,6 +118,7 @@ export function useChatStreamManager({
           model,
           request: baseRequest,
           signal: abortController.signal,
+          activePrompts,
           onUpdate: (assistantMessage) => {
             setChatMessages((prev) => {
               const idx = prev.findIndex((m) => m.id === assistantMessage.id)
