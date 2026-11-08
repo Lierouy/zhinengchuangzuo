@@ -19,6 +19,7 @@ import {
 import { parseZhinengchuangzuoSettings } from './settings/schema/settings'
 import { ZhinengchuangzuoSettingTab } from './settings/SettingTab'
 import { MentionableBlockData } from './types/mentionable'
+import { disposeSearchIndex } from './utils/fuzzy-search'
 import { ensureFolderExists, getMentionableBlockData } from './utils/obsidian'
 
 const arrayLength = (value: unknown): number =>
@@ -80,6 +81,12 @@ export default class ZhinengchuangzuoPlugin extends Plugin {
     })
     // This adds a settings tab so the user can configure various aspects of the plugin
     this.addSettingTab(new ZhinengchuangzuoSettingTab(this.app, this))
+  }
+
+  override onunload() {
+    // The mention search index keeps module-level vault listeners; without this
+    // a plugin reload would leave them attached to the old app instance.
+    disposeSearchIndex()
   }
 
   // Save settings in user_data folder instead of plugin root

@@ -81,15 +81,14 @@ export class MentionNode extends TextNode {
   static override importJSON(
     serializedNode: SerializedMentionNode,
   ): MentionNode {
+    // Only the fields `cleanupEditorState` keeps are read back: format, mode and
+    // style are stripped on save, so the factory defaults are the source of
+    // truth (mode 'token', plain format) instead of a restored `undefined`.
     const node = $createMentionNode(
       serializedNode.mentionName,
       serializedNode.mentionable,
     )
-    node.setTextContent(serializedNode.text)
-    node.setFormat(serializedNode.format)
-    node.setDetail(serializedNode.detail)
-    node.setMode(serializedNode.mode)
-    node.setStyle(serializedNode.style)
+    node.setTextContent(serializedNode.text ?? `@${serializedNode.mentionName}`)
     return node
   }
 

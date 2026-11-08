@@ -1,5 +1,11 @@
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
-import { Klass, LexicalNode, NodeKey, NodeMutation } from 'lexical'
+import {
+  $getNodeByKey,
+  Klass,
+  LexicalNode,
+  NodeKey,
+  NodeMutation,
+} from 'lexical'
 import { useEffect, useLayoutEffect, useRef } from 'react'
 
 export type NodeMutations<T> = Map<NodeKey, { mutation: NodeMutation; node: T }>
@@ -24,20 +30,21 @@ export default function OnMutationPlugin<T extends LexicalNode>({
     const removeListener = editor.registerMutationListener(
       nodeClass,
       (mutatedNodes, payload) => {
-        const editorState = editor.getEditorState()
-
         const mutations = new Map<
           NodeKey,
           { mutation: NodeMutation; node: T }
         >()
         for (const [key, mutation] of mutatedNodes) {
-          mutations.set(key, {
-            mutation,
-            node:
-              mutation === 'destroyed'
-                ? (payload.prevEditorState._nodeMap.get(key) as T)
-                : (editorState._nodeMap.get(key) as T),
-          })
+          // Destroyed nodes only exist in the previous state. Both lookups go
+          // through the public `EditorState.read` + `$getNodeByKey` pair rather
+          // than the private `_nodeMap`, which Lexical does not guarantee.
+          const state =
+            mutation === 'destroyed'
+              ? payload.prevEditorState
+              : editor.getEditorState()
+          const node = state.read(() => $getNodeByKey(key)) as T | null
+          if (!node) continue
+          mutations.set(key, { mutation, node })
         }
 
         onMutationRef.current(mutations)

@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 
+import { useApp } from '../../contexts/app-context'
 import { ZhinengchuangzuoSettings } from '../../settings/schema/setting.types'
 import {
   ChatAssistantMessage,
@@ -8,9 +9,10 @@ import {
 } from '../../types/chat'
 import { RequestMessage } from '../../types/request'
 import { resolveChatModelClient } from '../../utils/chat/chatModel'
-import { runCompletion } from '../../utils/llm/completion'
+import { EmptyResponseError, runCompletion } from '../../utils/llm/completion'
 import { ModelSettings, buildModelRequest } from '../../utils/model-settings'
 import { CONSOLE_HINT, reportError } from '../../utils/reportError'
+import { ErrorModal } from '../modals/ErrorModal'
 
 type UseHandleStreamParams = {
   settings: ZhinengchuangzuoSettings
@@ -39,6 +41,7 @@ export function useHandleStream({
   abortActiveStreams,
   registerAbortController,
 }: UseHandleStreamParams): UseHandleStream {
+  const app = useApp()
   const [handleStreamActive, setHandleStreamActive] = useState(false)
 
   const startHandleStream = useCallback(
@@ -81,12 +84,21 @@ export function useHandleStream({
         }
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') return
-        reportError(`Failed to start processing the file, ${CONSOLE_HINT}`, error)
+        if (error instanceof EmptyResponseError) {
+          // One failure, one dialog: the modal replaces the generic notice.
+          new ErrorModal(app, 'Error', error.message).open()
+          return
+        }
+        reportError(
+          `Failed to start processing the file, ${CONSOLE_HINT}`,
+          error,
+        )
       } finally {
         setHandleStreamActive(false)
       }
     },
     [
+      app,
       abortActiveStreams,
       registerAbortController,
       setChatMessages,

@@ -171,9 +171,13 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
 
     const handleCreateImageMentionables = useCallback(
       (mentionableImages: MentionableImage[]) => {
+        // Read the ref, not the render-time closure: two decode batches can
+        // finish back to back, and a stale list would drop the earlier images
+        // (or let both slip past the limit check).
+        const current = mentionablesRef.current
         const newMentionableImages = mentionableImages.filter(
           (m) =>
-            !mentionables.some(
+            !current.some(
               (mentionable) =>
                 getMentionableKey(serializeMentionable(mentionable)) ===
                 getMentionableKey(serializeMentionable(m)),
@@ -182,13 +186,17 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
         if (newMentionableImages.length === 0) return
 
         // 图片数量限制（覆盖上传按钮、拖拽、粘贴所有入口）
-        const imageCount = mentionables.filter((m) => m.type === 'image').length
+        const imageCount = current.filter((m) => m.type === 'image').length
         if (imageCount + newMentionableImages.length > MAX_IMAGE_COUNT) {
           showImageLimitNotice()
           return
         }
 
-        setMentionables([...mentionables, ...newMentionableImages])
+        const next = [...current, ...newMentionableImages]
+        // Keep the ref in sync immediately so the next batch sees this one even
+        // before React re-renders.
+        mentionablesRef.current = next
+        setMentionables(next)
         setDisplayedMentionableKey(
           getMentionableKey(
             serializeMentionable(
@@ -197,7 +205,7 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
           ),
         )
       },
-      [mentionables, setMentionables, showImageLimitNotice],
+      [setMentionables, showImageLimitNotice],
     )
 
     const handleMentionableDelete = (mentionable: Mentionable) => {

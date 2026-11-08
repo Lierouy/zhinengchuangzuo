@@ -15,6 +15,27 @@ const EMPTY_USAGE: ResponseUsage = {
   total_tokens: 0,
 }
 
+/** Appended to the answer when the model hit its output limit. */
+const TRUNCATION_SUFFIX = '\n==(截断)=='
+
+/**
+ * Providers report the output limit differently: OpenAI uses `length`, Anthropic
+ * passes its own `max_tokens` stop reason straight through.
+ */
+const isTruncated = (finishReason: string | null | undefined): boolean =>
+  finishReason === 'length' || finishReason === 'max_tokens'
+
+/**
+ * The request succeeded but produced nothing to show. Callers surface this in an
+ * error dialog instead of leaving the user with an unanswered message.
+ */
+export class EmptyResponseError extends Error {
+  constructor() {
+    super('The model returned an empty response')
+    this.name = 'EmptyResponseError'
+  }
+}
+
 export type RunCompletionParams = {
   providerClient: LLMProviderClient
   model: ChatModel
@@ -86,10 +107,20 @@ async function runStreamingCompletion({
   })
 
   let assistantMessage: ChatAssistantMessage | null = null
+  let finishReason: string | null = null
   const interceptor = createTagInterceptor()
 
   for await (const chunk of responseStream) {
     if (signal.aborted) break
+
+    const contentDelta = chunk.choices[0]?.delta?.content ?? ''
+    const reasoningDelta = chunk.choices[0]?.delta?.reasoning ?? ''
+    finishReason = chunk.choices[0]?.finish_reason ?? finishReason
+
+    // Usage-only chunks (OpenAI sends the totals in a chunk with an empty
+    // `choices` array) carry no text. Creating the message for them would leave
+    // an empty bubble when the model returns nothing at all.
+    if (!assistantMessage && !contentDelta && !reasoningDelta) continue
 
     if (!assistantMessage) {
       assistantMessage = {
@@ -104,10 +135,7 @@ async function runStreamingCompletion({
       }
     }
 
-    const intercepted = interceptor.push(
-      chunk.choices[0]?.delta?.content ?? '',
-      chunk.choices[0]?.delta?.reasoning ?? '',
-    )
+    const intercepted = interceptor.push(contentDelta, reasoningDelta)
 
     const currentUsage: ResponseUsage =
       assistantMessage.metadata?.usage ?? EMPTY_USAGE
@@ -133,17 +161,34 @@ async function runStreamingCompletion({
 
   // Release any closing-tag tail held back during streaming.
   const final = interceptor.flush()
+
+  if (!assistantMessage) {
+    // Nothing arrived at all. A user abort is not a failure to report.
+    if (signal.aborted) return
+    throw new EmptyResponseError()
+  }
+
+  const finalContent = isTruncated(finishReason)
+    ? final.content + TRUNCATION_SUFFIX
+    : final.content
+  const finalReasoning = final.reasoning || undefined
+
   if (
-    assistantMessage &&
-    (final.content !== assistantMessage.content ||
-      final.reasoning !== (assistantMessage.reasoning ?? ''))
+    finalContent !== assistantMessage.content ||
+    (finalReasoning ?? '') !== (assistantMessage.reasoning ?? '')
   ) {
-    onUpdate({
+    assistantMessage = {
       ...assistantMessage,
-      content: final.content,
-      reasoning: final.reasoning || undefined,
-    })
+      content: finalContent,
+      reasoning: finalReasoning,
+    }
+    onUpdate(assistantMessage)
     onScroll?.()
+  }
+
+  if (assistantMessage.content === '' && !assistantMessage.reasoning) {
+    if (signal.aborted) return
+    throw new EmptyResponseError()
   }
 }
 
@@ -167,11 +212,20 @@ async function runNonStreamingCompletion({
     choice?.message?.content ?? '',
     choice?.message?.reasoning ?? '',
   )
+  const content = isTruncated(choice?.finish_reason)
+    ? intercepted.content + TRUNCATION_SUFFIX
+    : intercepted.content
+
+  // Same rule as the streaming path: an empty answer is reported as a failure
+  // instead of creating an empty assistant message.
+  if (content === '' && !intercepted.reasoning) {
+    throw new EmptyResponseError()
+  }
 
   onUpdate({
     id: `assistant-${Date.now()}`,
     role: 'assistant',
-    content: intercepted.content,
+    content,
     reasoning: intercepted.reasoning || undefined,
     metadata: {
       usage: response.usage ?? { ...EMPTY_USAGE },

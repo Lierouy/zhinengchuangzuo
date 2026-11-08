@@ -3,7 +3,7 @@ import {
   go as fuzzysortGo,
   snapshot as fuzzysortSnapshot,
 } from 'fuzzysort'
-import { App, TFile, TFolder } from 'obsidian'
+import { App, EventRef, TFile, TFolder } from 'obsidian'
 
 import { MentionableFile, MentionableFolder } from '../types/mentionable'
 
@@ -49,6 +49,7 @@ type SearchIndex = {
 let searchIndex: SearchIndex | null = null
 let invalidateTimer: ReturnType<typeof setTimeout> | null = null
 let listeningApp: App | null = null
+const vaultEventRefs: EventRef[] = []
 
 function scheduleIndexInvalidation(): void {
   if (invalidateTimer !== null) {
@@ -60,13 +61,37 @@ function scheduleIndexInvalidation(): void {
   }, VAULT_INVALIDATE_DEBOUNCE_MS)
 }
 
+/**
+ * Drops the cached index together with every vault listener it registered.
+ * Called on plugin unload so a reload cannot keep listening to a dead app.
+ */
+export function disposeSearchIndex(): void {
+  if (invalidateTimer !== null) {
+    clearTimeout(invalidateTimer)
+    invalidateTimer = null
+  }
+  if (listeningApp) {
+    for (const ref of vaultEventRefs) {
+      listeningApp.vault.offref(ref)
+    }
+  }
+  vaultEventRefs.length = 0
+  listeningApp = null
+  searchIndex = null
+}
+
 function ensureVaultListeners(app: App): void {
   if (listeningApp === app) return
+  // The index belongs to a single app instance; drop the previous listeners.
+  disposeSearchIndex()
   listeningApp = app
-  // Bursts of changes (e.g. a folder rename) collapse into one rebuild.
-  app.vault.on('create', scheduleIndexInvalidation)
-  app.vault.on('delete', scheduleIndexInvalidation)
-  app.vault.on('rename', scheduleIndexInvalidation)
+  // `modify` keeps the "recently edited" boost of a cached index from ageing.
+  vaultEventRefs.push(
+    app.vault.on('create', scheduleIndexInvalidation),
+    app.vault.on('delete', scheduleIndexInvalidation),
+    app.vault.on('rename', scheduleIndexInvalidation),
+    app.vault.on('modify', scheduleIndexInvalidation),
+  )
 }
 
 /**

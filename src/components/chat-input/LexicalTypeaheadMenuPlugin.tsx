@@ -186,8 +186,7 @@ export function LexicalTypeaheadMenuPlugin<TOption extends MenuOption>({
       editor.getEditorState().read(() => {
         // Derive the correct window from the editor root element
         const rootElement = editor.getRootElement()
-        const editorWindow =
-          rootElement?.ownerDocument?.defaultView ?? editor._window ?? window
+        const editorWindow = rootElement?.ownerDocument?.defaultView ?? window
         const range = editorWindow.document.createRange()
         const selection = $getSelection()
         const text = getQueryTextForSearch(editor)
