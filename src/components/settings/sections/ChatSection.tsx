@@ -11,7 +11,7 @@ export function ChatSection() {
     <div className="zncz-settings-section">
       <div className="zncz-settings-header">会话</div>
 
-      <ObsidianSetting name="会话模型" desc="选择默认用于会话的模型。">
+      <ObsidianSetting name="会话模型" desc="选择作为智能助手的语言模型。">
         <ObsidianDropdown
           value={settings.chatModelId}
           options={Object.fromEntries(

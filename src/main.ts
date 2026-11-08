@@ -41,7 +41,7 @@ export default class ZhinengchuangzuoPlugin extends Plugin {
     // This adds a simple command that can be triggered anywhere
     this.addCommand({
       id: 'open-new-chat',
-      name: '开启助手会话',
+      name: '开启智能助手会话',
       callback: () => this.openChatView(false),
     })
 

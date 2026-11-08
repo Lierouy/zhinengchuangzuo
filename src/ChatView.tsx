@@ -34,7 +34,7 @@ export class ChatView extends ItemView {
   }
 
   getDisplayText() {
-    return '助手会话'
+    return '创作助手'
   }
 
   override async onOpen() {
