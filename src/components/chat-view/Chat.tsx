@@ -23,14 +23,12 @@ import { ChatContainerContext } from '../../contexts/chat-container-context'
 import { usePlugin } from '../../contexts/plugin-context'
 import { useSettings } from '../../contexts/settings-context'
 import { useChatHistory } from '../../hooks/useChatHistory'
-import {
-  useContextManager,
-  useTemplateManager,
-} from '../../hooks/useJsonManagers'
+import { useContextManager } from '../../hooks/useJsonManagers'
 import {
   ChatAssistantMessageGroup,
   ChatMessage,
   ChatUserMessage,
+  HandleStreamInput,
 } from '../../types/chat'
 import { MentionableBlock, MentionableBlockData } from '../../types/mentionable'
 import {
@@ -74,7 +72,7 @@ export type ChatRef = {
   openNewChat: (selectedBlock?: MentionableBlockData) => void
   addSelectionToChat: (selectedBlock: MentionableBlockData) => void
   focusMessage: () => void
-  startHandleStream: (fileContent: string) => Promise<void>
+  startHandleStream: (input: HandleStreamInput) => Promise<void>
 }
 
 const Chat = forwardRef<ChatRef>((_props, ref) => {
@@ -93,7 +91,6 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
     chatList,
   } = useChatHistory()
 
-  const templateManager = useTemplateManager()
   const contextManager = useContextManager()
   const promptGenerator = useMemo(
     () => new PromptGenerator(app, settings, contextManager),
@@ -194,7 +191,6 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
 
   const { startHandleStream, handleStreamActive } = useHandleStream({
     settings,
-    templateManager,
     setChatMessages,
     autoScrollToBottom,
     abortActiveStreams,
@@ -424,9 +420,7 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
       if (!focusedMessageId) return
       chatUserInputRefs.current.get(focusedMessageId)?.focus()
     },
-    startHandleStream: async (fileContent: string) => {
-      await startHandleStream(fileContent)
-    },
+    startHandleStream,
   }))
 
   return (

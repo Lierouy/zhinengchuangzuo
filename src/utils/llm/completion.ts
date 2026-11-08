@@ -167,7 +167,9 @@ async function runNonStreamingCompletion({
     reasoning: intercepted.reasoning || undefined,
     metadata: {
       usage: response.usage ?? { ...EMPTY_USAGE },
-      model: response.model,
+      // Same configured name the streaming path records; providers may echo an
+      // internal model id in `response.model` instead.
+      model: model.model,
     },
   })
   onScroll?.()

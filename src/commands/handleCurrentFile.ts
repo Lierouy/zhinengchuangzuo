@@ -1,59 +1,28 @@
-import { App, Notice, TFile } from 'obsidian'
+import { Notice } from 'obsidian'
 
 import { ChatView } from '../ChatView'
 import { CHAT_VIEW_TYPE } from '../constants'
+import { TemplateManager } from '../database/template/TemplateManager'
 import type ZhinengchuangzuoPlugin from '../main'
+import type { HandleStreamInput } from '../types/chat'
 
+import { buildHandlePrompt } from './handlePrompt'
 import {
-  WikiLink,
-  buildHandlePrompt,
-  collectLinkedContent,
-  extractWikiLinks,
-} from './handlePrompt'
+  collectReferenceBlocks,
+  resolveHandleReferences,
+} from './handleReferences'
 
-const DEFAULT_MAX_LINKS = 20
+const DEFAULT_MAX_LINKS = 30
 const DEFAULT_MAX_CHARS = 300000
 
-/** Resolves one wiki link, preferring Obsidian's own link resolution. */
-function resolveLinkedFile(
-  app: App,
-  linkRaw: string,
-  sourcePath: string,
-): TFile | null {
-  const linkPath = linkRaw.replace(/^\.\//, '')
-
-  const dest = app.metadataCache.getFirstLinkpathDest(linkPath, sourcePath)
-  if (dest instanceof TFile) return dest
-
-  const direct = app.vault.getAbstractFileByPath(linkPath)
-  if (direct instanceof TFile) return direct
-
-  const withExtension = app.vault.getAbstractFileByPath(
-    linkPath.endsWith('.md') ? linkPath : `${linkPath}.md`,
-  )
-  return withExtension instanceof TFile ? withExtension : null
-}
-
-/** Resolves candidates in order, stopping at `maxLinks` and skipping self. */
-function resolveLinkedFiles(
-  app: App,
-  links: WikiLink[],
-  sourceFile: TFile,
-  maxLinks: number,
-): TFile[] {
-  const resolved: TFile[] = []
-  for (const link of links) {
-    if (resolved.length >= maxLinks) break
-    const target = resolveLinkedFile(app, link.raw, sourceFile.path)
-    if (
-      target &&
-      target.path !== sourceFile.path &&
-      target.extension === 'md'
-    ) {
-      resolved.push(target)
-    }
-  }
-  return resolved
+/** Resolves the preset template picked in settings into the system prompt. */
+async function resolveSystemPrompt(
+  plugin: ZhinengchuangzuoPlugin,
+): Promise<string> {
+  const promptId = plugin.settings.handlePromptId
+  if (!promptId) return ''
+  const template = await new TemplateManager(plugin.app).findById(promptId)
+  return template?.content.trim() ?? ''
 }
 
 /**
@@ -73,35 +42,15 @@ export async function handleCurrentFile(
       new Notice('No open files are available for handle')
       return
     }
-
-    const fileContent = await app.vault.cachedRead(file)
-    const maxLinks = plugin.settings.handleMaxLinks ?? DEFAULT_MAX_LINKS
-    const maxChars = plugin.settings.handleMaxChars ?? DEFAULT_MAX_CHARS
-
-    if (fileContent.length > maxChars) {
-      new Notice(
-        'The current file content exceeds the character limit and cannot be sent',
-      )
+    if (file.extension !== 'md') {
+      new Notice('Only markdown notes can be handled')
       return
     }
 
-    const linkedFiles = resolveLinkedFiles(
-      app,
-      extractWikiLinks(fileContent),
-      file,
-      maxLinks,
-    )
-    const { blocks, dropped } = await collectLinkedContent(
-      app,
-      linkedFiles,
-      fileContent.length,
-      maxChars,
-    )
-
-    if (dropped.length > 0) {
-      new Notice(
-        `Some associated files have been excluded because they exceed the character limit ${maxChars}`,
-      )
+    const systemPrompt = await resolveSystemPrompt(plugin)
+    if (!systemPrompt) {
+      new Notice('Select the prompt to use in the settings first')
+      return
     }
 
     const chatModel = plugin.settings.chatModels.find(
@@ -118,10 +67,39 @@ export async function handleCurrentFile(
       return
     }
 
-    await openChatAndStream(
-      plugin,
-      buildHandlePrompt(file.path, fileContent, blocks),
+    const fileContent = await app.vault.cachedRead(file)
+    const maxLinks = plugin.settings.handleMaxLinks ?? DEFAULT_MAX_LINKS
+    const maxChars = plugin.settings.handleMaxChars ?? DEFAULT_MAX_CHARS
+
+    if (fileContent.length > maxChars) {
+      new Notice(
+        'The current file content exceeds the character limit and cannot be sent',
+      )
+      return
+    }
+
+    const references = resolveHandleReferences(app, file, maxLinks)
+    if (!references) {
+      new Notice('The file is still being indexed, please try again later')
+      return
+    }
+
+    const { blocks, totalLength } = await collectReferenceBlocks(
+      app,
+      references,
+      fileContent.length,
     )
+    if (totalLength > maxChars) {
+      new Notice(
+        `The current file and its linked contents exceed the character limit ${maxChars}`,
+      )
+      return
+    }
+
+    await openChatAndStream(plugin, {
+      systemPrompt,
+      prompt: buildHandlePrompt(file.path, fileContent, blocks),
+    })
   } catch (error) {
     console.error('Failed to handle file', error)
     new Notice('Handle failed, please check console logs')
@@ -132,7 +110,7 @@ export async function handleCurrentFile(
 
 async function openChatAndStream(
   plugin: ZhinengchuangzuoPlugin,
-  prompt: string,
+  input: HandleStreamInput,
 ): Promise<void> {
   const workspace = plugin.app.workspace
   const existingLeaf = workspace
@@ -149,6 +127,6 @@ async function openChatAndStream(
     .getLeavesOfType(CHAT_VIEW_TYPE)
     .find((candidate) => candidate.view instanceof ChatView)
   if (leaf && leaf.view instanceof ChatView) {
-    await leaf.view.startHandleStream(prompt)
+    await leaf.view.startHandleStream(input)
   }
 }

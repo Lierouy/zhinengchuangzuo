@@ -10,6 +10,7 @@ import { ChatViewProvider } from './contexts/chat-view-context'
 import { PluginProvider } from './contexts/plugin-context'
 import { SettingsProvider } from './contexts/settings-context'
 import ZhinengchuangzuoPlugin from './main'
+import { HandleStreamInput } from './types/chat'
 import { MentionableBlockData } from './types/mentionable'
 
 export class ChatView extends ItemView {
@@ -94,8 +95,8 @@ export class ChatView extends ItemView {
     this.chatRef.current?.openNewChat(selectedBlock)
   }
 
-  async startHandleStream(fileContent: string) {
-    await this.chatRef.current?.startHandleStream(fileContent)
+  async startHandleStream(input: HandleStreamInput) {
+    await this.chatRef.current?.startHandleStream(input)
   }
 
   addSelectionToChat(selectedBlock: MentionableBlockData) {

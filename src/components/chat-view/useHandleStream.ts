@@ -2,16 +2,18 @@ import { Notice } from 'obsidian'
 import { useCallback, useState } from 'react'
 
 import { getChatModelClient } from '../../core/manager'
-import { TemplateManager } from '../../database/template/TemplateManager'
 import { ZhinengchuangzuoSettings } from '../../settings/schema/setting.types'
-import { ChatAssistantMessage, ChatMessage } from '../../types/chat'
+import {
+  ChatAssistantMessage,
+  ChatMessage,
+  HandleStreamInput,
+} from '../../types/chat'
 import { RequestMessage } from '../../types/request'
 import { runCompletion } from '../../utils/llm/completion'
 import { ModelSettings, buildModelRequest } from '../../utils/model-settings'
 
 type UseHandleStreamParams = {
   settings: ZhinengchuangzuoSettings
-  templateManager: TemplateManager
   setChatMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>
   autoScrollToBottom: () => void
   abortActiveStreams: () => void
@@ -20,18 +22,18 @@ type UseHandleStreamParams = {
 
 export type UseHandleStream = {
   /** Streams the "handle this file" prompt into the conversation. */
-  startHandleStream: (fileContent: string) => Promise<void>
+  startHandleStream: (input: HandleStreamInput) => Promise<void>
   /** True while this hook owns a running stream. */
   handleStreamActive: boolean
 }
 
 /**
- * The "单独处理当前文件" flow: takes a pre-built file prompt from a command and
- * streams the model's answer as a new assistant message.
+ * The "单独处理当前文件" flow: takes the preset system prompt and a pre-built file
+ * prompt from the command, then streams the model's answer as a new assistant
+ * message.
  */
 export function useHandleStream({
   settings,
-  templateManager,
   setChatMessages,
   autoScrollToBottom,
   abortActiveStreams,
@@ -40,7 +42,7 @@ export function useHandleStream({
   const [handleStreamActive, setHandleStreamActive] = useState(false)
 
   const startHandleStream = useCallback(
-    async (fileContent: string) => {
+    async (input: HandleStreamInput) => {
       try {
         abortActiveStreams()
         setHandleStreamActive(true)
@@ -53,18 +55,9 @@ export function useHandleStream({
         const unregister = registerAbortController(abortController)
 
         try {
-          const handlePrompt = await resolveHandlePrompt(
-            templateManager,
-            settings.handlePromptId,
-          )
-          if (!handlePrompt) {
-            new Notice('Select the prompt to use in the settings first')
-            return
-          }
-
           const messages: RequestMessage[] = [
-            { role: 'system', content: handlePrompt },
-            { role: 'user', content: fileContent },
+            { role: 'system', content: input.systemPrompt },
+            { role: 'user', content: input.prompt },
           ]
           const rawSettings: ModelSettings = model.settings ?? {}
           const { baseRequest } = buildModelRequest(
@@ -100,7 +93,6 @@ export function useHandleStream({
       setChatMessages,
       autoScrollToBottom,
       settings,
-      templateManager,
     ],
   )
 
@@ -118,15 +110,6 @@ function resolveClientOrNotify(
     new Notice('Please add a model in settings first')
     return null
   }
-}
-
-async function resolveHandlePrompt(
-  templateManager: TemplateManager,
-  handlePromptId: string,
-): Promise<string> {
-  if (!handlePromptId) return ''
-  const template = await templateManager.findById(handlePromptId)
-  return template?.content.trim() ?? ''
 }
 
 /** Replaces the streaming assistant message in place, or appends it once. */

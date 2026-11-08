@@ -32,7 +32,7 @@ export function HandleSection({ showRequired = false }: HandleSectionProps) {
     <div className="zncz-settings-section">
       <div className="zncz-settings-header">单独处理</div>
       <div className="zncz-settings-desc">
-        脱离所有上下文，单独调用模型处理当前打开的文件，还会解析文件中的内部链接。
+        隔离其他上下文，单独调用模型处理当前打开的文件，还会解析文件中的内部链接。
       </div>
 
       <ObsidianSetting
@@ -54,7 +54,7 @@ export function HandleSection({ showRequired = false }: HandleSectionProps) {
 
       <ObsidianSetting
         name="有效链接数量"
-        desc="限制被链接附加的文件数量，留空使用默认值 20。"
+        desc="限制被链接附加的内容数量，留空使用默认值 30。"
       >
         <div style={{ marginTop: '3px' }} />
         <ObsidianNumberInput
@@ -67,7 +67,7 @@ export function HandleSection({ showRequired = false }: HandleSectionProps) {
 
       <ObsidianSetting
         name="处理字数上限"
-        desc="所有提交文件的总字数上限，留空使用默认值 300000。"
+        desc="当前文件和链接内容的总字数上限，留空使用默认值 300000。"
       >
         <div style={{ marginTop: '3px' }} />
         <ObsidianNumberInput

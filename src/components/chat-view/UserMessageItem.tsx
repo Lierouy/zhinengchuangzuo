@@ -33,7 +33,7 @@ function UserMessageItem({
       const text = message.content
         ? editorStateToPlainText(message.content)
         : ''
-      // 把 @文件名 替换为 Obsidian 内部链接 [[文件名]]，只替换 @ 前面是空格/行首的情况
+      // 把 @文件名 替换为 Obsidian wiki 链接 [[文件名]]，只替换 @ 前面是空格/行首的情况
       const textWithInternalLinks = text.replace(/(^|\s)@([^\s]+)/g, '$1[[$2]]')
 
       // 从 mentionables 提取图片，始终可用，不会因为 promptContent 清空而丢失

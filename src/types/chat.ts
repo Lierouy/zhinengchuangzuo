@@ -46,3 +46,9 @@ export type SerializedChatAssistantMessage = {
 }
 export type SerializedChatMessage =
   SerializedChatUserMessage | SerializedChatAssistantMessage
+
+/** Input of the "handle current file" stream: preset system prompt + file prompt. */
+export type HandleStreamInput = {
+  systemPrompt: string
+  prompt: string
+}
