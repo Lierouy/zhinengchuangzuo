@@ -63,13 +63,8 @@ function ConfirmModalComponent({
     <div>
       <div style={{ whiteSpace: 'pre-wrap' }}>{message}</div>
       <div className="modal-button-container">
-        <button
-          className="mod-warning"
-          onClick={() => void handleConfirm()}
-          disabled={isPending}
-        >
-          {ctaText ?? 'Confirm'}
-        </button>
+        {/* Obsidian renders modal buttons in DOM order, right-aligned, so the
+            cancel button has to come first: 取消 on the left, 确定 on the right. */}
         <button
           className="mod-cancel"
           onClick={() => {
@@ -79,6 +74,13 @@ function ConfirmModalComponent({
           disabled={isPending}
         >
           取消
+        </button>
+        <button
+          className="mod-warning"
+          onClick={() => void handleConfirm()}
+          disabled={isPending}
+        >
+          {ctaText ?? 'Confirm'}
         </button>
       </div>
     </div>

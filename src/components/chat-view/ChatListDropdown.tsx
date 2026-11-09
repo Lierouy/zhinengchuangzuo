@@ -177,16 +177,32 @@ export function ChatListDropdown({
   // keyboard; only the most recent input modality wins.
   const keyboardNavRef = useRef(false)
 
+  // Read when the popover opens, without making the open effect depend on them:
+  // a background save replaces `chatList` and must not cancel an in-progress
+  // rename or reset the keyboard highlight.
+  const chatListRef = useRef(chatList)
+  chatListRef.current = chatList
+  const currentConversationIdRef = useRef(currentConversationId)
+  currentConversationIdRef.current = currentConversationId
+
   useEffect(() => {
-    if (open) {
-      const currentIndex = chatList.findIndex(
-        (chat) => chat.id === currentConversationId,
-      )
-      setFocusedIndex(currentIndex === -1 ? 0 : currentIndex)
-      setEditingId(null)
-      keyboardNavRef.current = false
-    }
-  }, [open, chatList, currentConversationId])
+    if (!open) return
+    const currentIndex = chatListRef.current.findIndex(
+      (chat) => chat.id === currentConversationIdRef.current,
+    )
+    setFocusedIndex(currentIndex === -1 ? 0 : currentIndex)
+    setEditingId(null)
+    keyboardNavRef.current = false
+  }, [open])
+
+  // A conversation can disappear while the list is open (deleted here or in
+  // another window): keep the highlight in range and stop editing a ghost row.
+  useEffect(() => {
+    setFocusedIndex((prev) => Math.min(prev, Math.max(0, chatList.length - 1)))
+    setEditingId((prev) =>
+      prev && !chatList.some((chat) => chat.id === prev) ? null : prev,
+    )
+  }, [chatList])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {

@@ -266,12 +266,14 @@ function ProviderFormComponent({
 
       <ObsidianSetting>
         <div style={{ marginTop: '3px' }}></div>
+        {/* Cancel on the left, action on the right — same order as Obsidian's
+            own modals. */}
+        <ObsidianButton text="取消" onClick={onClose} />
         <ObsidianButton
           text={provider ? '保存' : '添加'}
           onClick={handleSubmit}
           cta
         />
-        <ObsidianButton text="取消" onClick={onClose} />
       </ObsidianSetting>
     </>
   )

@@ -1,8 +1,7 @@
-import { App, Keymap, MarkdownRenderer } from 'obsidian'
+import { App, Component, Keymap, MarkdownRenderer } from 'obsidian'
 import { memo, useEffect, useRef } from 'react'
 
 import { useApp } from '../../contexts/app-context'
-import { useChatView } from '../../contexts/chat-view-context'
 
 /** Streaming updates arrive per token; the DOM is rebuilt at most this often. */
 const RENDER_THROTTLE_MS = 350
@@ -23,7 +22,6 @@ const ObsidianMarkdown = memo(function ObsidianMarkdown({
   scale = 'base',
 }: ObsidianMarkdownProps) {
   const app = useApp()
-  const chatView = useChatView()
   const containerRef = useRef<HTMLDivElement>(null)
   // The delegated click handler is attached once per container, so it must read
   // the current source path through a ref instead of capturing it.
@@ -44,6 +42,11 @@ const ObsidianMarkdown = memo(function ObsidianMarkdown({
     let dirty = false
     let timer: number | null = null
     let lastRenderAt = 0
+    // `MarkdownRenderer` attaches the render children created by plugins to the
+    // component it is given. Using a throwaway component per pass and unloading
+    // it before the next one keeps those children from piling up while a
+    // response streams (this component re-renders every ~350ms).
+    let renderComponent: Component | null = null
 
     const renderOnce = async () => {
       if (rendering) {
@@ -57,13 +60,19 @@ const ObsidianMarkdown = memo(function ObsidianMarkdown({
         // file that is active now, not the one active at mount time.
         const sourcePath = app.workspace.getActiveFile()?.path ?? ''
         sourcePathRef.current = sourcePath
+
+        renderComponent?.unload()
+        const component = new Component()
+        component.load()
+        renderComponent = component
+
         container.innerHTML = ''
         await MarkdownRenderer.render(
           app,
           latestContentRef.current,
           container,
           sourcePath,
-          chatView,
+          component,
         )
         if (cancelled) return
         setupMarkdownLinks(app, container, sourcePathRef)
@@ -99,9 +108,11 @@ const ObsidianMarkdown = memo(function ObsidianMarkdown({
         window.clearTimeout(timer)
         timer = null
       }
+      renderComponent?.unload()
+      renderComponent = null
       scheduleRef.current = () => {}
     }
-  }, [app, chatView])
+  }, [app])
 
   useEffect(() => {
     scheduleRef.current()

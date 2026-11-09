@@ -6,7 +6,7 @@ import { ChatAssistantMessage, ChatUserMessage } from '../../types/chat'
 import { MentionableBlock, MentionableImage } from '../../types/mentionable'
 import { ContentPart } from '../../types/request'
 
-import { editorStateToPlainText } from './../chat-input/editor-state-to-plain-text'
+import { editorStateToDisplayText } from './../chat-input/editor-state-to-plain-text'
 import AssistantMessageReasoning from './AssistantMessageReasoning'
 import LLMResponseInfoPopover from './LLMResponseInfoPopover'
 import { ObsidianMarkdown } from './ObsidianMarkdown'
@@ -29,12 +29,10 @@ function UserMessageItem({
 
   const contentParts = useMemo(() => {
     if (message.role === 'user') {
-      // 用户消息：从 mentionables 中提取图片，文本部分使用原始 content
-      const text = message.content
-        ? editorStateToPlainText(message.content)
+      // 用户消息：mention 节点渲染为带 @ 别名的 wiki 链接，其余文本原样保留
+      const textWithInternalLinks = message.content
+        ? editorStateToDisplayText(message.content)
         : ''
-      // 把 @文件名 替换为 Obsidian wiki 链接 [[文件名]]，只替换 @ 前面是空格/行首的情况
-      const textWithInternalLinks = text.replace(/(^|\s)@([^\s]+)/g, '$1[[$2]]')
 
       // 从 mentionables 提取图片，始终可用，不会因为 promptContent 清空而丢失
       const images = message.mentionables

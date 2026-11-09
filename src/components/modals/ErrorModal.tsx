@@ -61,6 +61,10 @@ function ErrorModalComponent({
     <div className="zncz-error-modal-content">
       <pre className="zncz-error-modal-log">{displayContent}</pre>
       <div className="modal-button-container">
+        {/* Same order as Obsidian's own modals: cancel left, action right. */}
+        <button className="mod-cancel" onClick={onClose}>
+          取消
+        </button>
         {options.showSettingsButton && (
           <button
             className="mod-cta"
@@ -74,9 +78,6 @@ function ErrorModalComponent({
             打开设置
           </button>
         )}
-        <button className="mod-cancel" onClick={onClose}>
-          取消
-        </button>
       </div>
     </div>
   )

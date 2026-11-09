@@ -279,8 +279,9 @@ function PromptItemFormComponent({
       )}
       <div style={{ marginTop: '3px' }} />
       <ObsidianSetting>
-        <ObsidianButton text="保存" onClick={handleSubmit} cta />
+        {/* Cancel on the left, action on the right. */}
         <ObsidianButton text="取消" onClick={onClose} />
+        <ObsidianButton text="保存" onClick={handleSubmit} cta />
       </ObsidianSetting>
     </>
   )

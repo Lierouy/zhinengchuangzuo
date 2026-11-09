@@ -222,33 +222,30 @@ function getEmptyQueryResult(
   searchItems: SearchItem[],
   limit: number,
 ): SearchableMentionable[] {
-  // Sort files based on a custom scoring function
-  const sortedFiles = searchItems.sort((a, b) => {
-    const scoreA = scoreFnWithBoost({
-      searchItem: a,
-      pathScore: 0.5, // Use 0.5 as a base score
-      nameScore: 0.5,
-    })
-    const scoreB = scoreFnWithBoost({
-      searchItem: b,
-      pathScore: 0.5, // Use 0.5 as a base score
-      nameScore: 0.5,
-    })
-    return scoreB - scoreA // Sort in descending order
-  })
-
-  // Return only the top 'limit' files
-  return sortedFiles
+  // Score once per item, then sort the pairs: putting the scoring call inside
+  // the comparator would recompute both sides O(n log n) times, which is the
+  // dominant cost on a large vault.
+  return searchItems
+    .map((searchItem) => ({
+      searchItem,
+      score: scoreFnWithBoost({
+        searchItem,
+        pathScore: 0.5, // Use 0.5 as a base score
+        nameScore: 0.5,
+      }),
+    }))
+    .sort((a, b) => b.score - a.score)
     .slice(0, limit)
-    .map((item) => searchItemToMentionable(item))
+    .map(({ searchItem }) => searchItemToMentionable(searchItem))
 }
 
 export function fuzzySearch(app: App, query: string): SearchableMentionable[] {
   const index = getIndex(app)
 
   if (!query) {
-    // Copy first: the empty-query sort must not reorder the cached index.
-    return getEmptyQueryResult([...index.items], EMPTY_QUERY_LIMIT)
+    // `getEmptyQueryResult` builds its own array, so the cached index is never
+    // reordered and it can be passed as-is.
+    return getEmptyQueryResult(index.items, EMPTY_QUERY_LIMIT)
   }
 
   const results = fuzzysortGo(query, index.snapshot, {

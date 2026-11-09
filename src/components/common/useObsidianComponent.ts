@@ -21,9 +21,11 @@ export function useObsidianComponent<C>(factory: ObsidianComponentFactory<C>) {
   const containerRef = useRef<HTMLDivElement>(null)
   const { setting } = useObsidianSetting()
   const [component, setComponent] = useState<C | null>(null)
-  // Stored in a ref so callers may pass a new object literal on every render
-  // without re-mounting the underlying component.
+  // Callers may pass a new object literal on every render; keeping the newest
+  // one in a ref avoids re-mounting while still never running a stale factory
+  // (e.g. one that captured an app instance from an earlier render).
   const factoryRef = useRef(factory)
+  factoryRef.current = factory
 
   useEffect(() => {
     const { addToSetting, create, dispose } = factoryRef.current

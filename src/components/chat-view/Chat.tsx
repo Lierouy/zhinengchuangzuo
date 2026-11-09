@@ -90,6 +90,7 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
   const {
     createOrUpdateConversation,
     saveNow,
+    flushPendingSaves,
     deleteConversation,
     getChatMessagesById,
     updateConversationTitle,
@@ -208,7 +209,12 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
 
   // Stop whatever is still running when the view closes. React ignores late
   // state updates after unmount, so no mounted flag is needed.
-  useEffect(() => () => abortActiveStreams(), [abortActiveStreams])
+  useEffect(
+    () => () => {
+      abortActiveStreams()
+    },
+    [abortActiveStreams],
+  )
 
   useCurrentFileSync({
     app,
@@ -237,6 +243,10 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
   const handleLoadConversation = useCallback(
     async (conversationId: string) => {
       try {
+        // Write whatever is still sitting in the debounce first: the incoming
+        // conversation's save would supersede it and the pending write would
+        // be dropped (losing the answer that just finished).
+        await flushPendingSaves()
         abortActiveStreams()
         const conversation = await getChatMessagesById(conversationId)
         if (!conversation) {
@@ -263,6 +273,7 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
     [
       app,
       abortActiveStreams,
+      flushPendingSaves,
       getChatMessagesById,
       highlightMentionable,
       setCurrentPage,
@@ -271,6 +282,9 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
 
   const handleNewChat = useCallback(
     (selectedBlock?: MentionableBlockData) => {
+      // The new chat has no messages to save, so nothing would supersede the
+      // pending write of the conversation being left behind.
+      void flushPendingSaves()
       // 原子更新：同时重置 conversationId 和 chatMessages
       setConversationState({
         conversationId: crypto.randomUUID(),
@@ -299,7 +313,13 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
       setFocusedMessageId(newInputMessage.id)
       abortActiveStreams()
     },
-    [app, abortActiveStreams, highlightMentionable, setCurrentPage],
+    [
+      app,
+      abortActiveStreams,
+      flushPendingSaves,
+      highlightMentionable,
+      setCurrentPage,
+    ],
   )
 
   const includeCurrentFileContent =
@@ -491,6 +511,12 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
                 await handleLoadConversation(conversationId)
               }}
               onDelete={async (conversationId) => {
+                // A pending save of the conversation being deleted would write
+                // the file back; only the current one can have one, so only
+                // cancel in that case.
+                if (conversationId === currentConversationId) {
+                  cancelPendingSaves()
+                }
                 await deleteConversation(conversationId)
                 if (conversationId === currentConversationId) {
                   const nextConversation = chatList.find(

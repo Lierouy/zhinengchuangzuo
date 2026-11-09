@@ -108,7 +108,7 @@ export function getMentionableKey(mentionable: SerializedMentionable): string {
     case 'current-file':
       return `current-file:${mentionable.file ?? 'current'}`
     case 'block':
-      return `block:${mentionable.file}:${mentionable.startLine}:${mentionable.endLine}:${mentionable.content}`
+      return `block:${mentionable.file}:${mentionable.startLine}:${mentionable.endLine}:${hashString(mentionable.content)}`
     case 'image':
       return `image:${mentionable.name}:${hashString(mentionable.data)}`
   }

@@ -335,8 +335,9 @@ function PromptGroupManageModalComponent({
         onStartAdd={handleStartAdd}
       />
       <ObsidianSetting>
-        <ObsidianButton text="保存" onClick={handleSave} cta />
+        {/* Cancel on the left, action on the right. */}
         <ObsidianButton text="取消" onClick={handleCancel} />
+        <ObsidianButton text="保存" onClick={handleSave} cta />
       </ObsidianSetting>
     </>
   )

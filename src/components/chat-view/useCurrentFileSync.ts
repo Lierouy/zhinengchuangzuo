@@ -1,8 +1,7 @@
-import { App } from 'obsidian'
+import { App, TFile } from 'obsidian'
 import { useCallback, useEffect } from 'react'
 
 import { ChatMessage, ChatUserMessage } from '../../types/chat'
-import { MentionableCurrentFile } from '../../types/mentionable'
 import { getOpenFiles } from '../../utils/obsidian'
 
 type UseCurrentFileSyncParams = {
@@ -12,6 +11,43 @@ type UseCurrentFileSyncParams = {
   inputMessageId: string
   setInputMessage: React.Dispatch<React.SetStateAction<ChatUserMessage>>
   setChatMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>
+}
+
+type Mentionables = ChatUserMessage['mentionables']
+
+const withoutCurrentFile = (mentionables: Mentionables): Mentionables =>
+  mentionables.some((m) => m.type === 'current-file')
+    ? mentionables.filter((m) => m.type !== 'current-file')
+    : mentionables
+
+/**
+ * Puts `file` first and drops any other current-file entry. Returns the same
+ * array when nothing would change: a new array identity would mark the whole
+ * conversation dirty and trigger a disk read + deep compare for nothing.
+ */
+function withCurrentFile(
+  mentionables: Mentionables,
+  file: TFile,
+): Mentionables {
+  const head = mentionables[0]
+  const tail =
+    head?.type === 'current-file'
+      ? mentionables.slice(1)
+      : mentionables.filter((m) => m.type !== 'current-file')
+  const tailHasCurrentFile = tail.some((m) => m.type === 'current-file')
+
+  if (
+    head?.type === 'current-file' &&
+    head.file?.path === file.path &&
+    !tailHasCurrentFile
+  ) {
+    return mentionables
+  }
+
+  return [
+    { type: 'current-file', file },
+    ...tail.filter((m) => m.type !== 'current-file'),
+  ]
 }
 
 /**
@@ -36,57 +72,53 @@ export function useCurrentFileSync({
     const openFiles = getOpenFiles(app)
     const noRealFileOpen = !activeFile || openFiles.length === 0
 
-    const withoutCurrentFile = (
-      mentionables: ChatUserMessage['mentionables'],
-    ) => mentionables.filter((m) => m.type !== 'current-file')
+    // Applies `transform` to the focused history message only, and keeps the
+    // previous array when nothing changed so an unrelated layout change cannot
+    // mark the conversation dirty and trigger a save.
+    const updateFocusedHistoryMessage = (
+      transform: (mentionables: Mentionables) => Mentionables,
+    ) => {
+      if (!focusedMessageId || inputMessageId === focusedMessageId) return
+      setChatMessages((prev) => {
+        let changed = false
+        const next = prev.map((message) => {
+          if (message.id !== focusedMessageId || message.role !== 'user') {
+            return message
+          }
+          const mentionables = transform(message.mentionables)
+          if (mentionables === message.mentionables) return message
+          changed = true
+          return { ...message, mentionables }
+        })
+        return changed ? next : prev
+      })
+    }
 
     if (noRealFileOpen) {
-      setInputMessage((prev) => ({
-        ...prev,
-        mentionables: withoutCurrentFile(prev.mentionables),
-      }))
-
-      // Also remove from focused history message if it's a user message
-      if (focusedMessageId && inputMessageId !== focusedMessageId) {
-        setChatMessages((prev) =>
-          prev.map((message) =>
-            message.id === focusedMessageId && message.role === 'user'
-              ? {
-                  ...message,
-                  mentionables: withoutCurrentFile(message.mentionables),
-                }
-              : message,
-          ),
-        )
-      }
+      setInputMessage((prev) => {
+        const mentionables = withoutCurrentFile(prev.mentionables)
+        return mentionables === prev.mentionables
+          ? prev
+          : { ...prev, mentionables }
+      })
+      updateFocusedHistoryMessage(withoutCurrentFile)
       return
     }
 
     if (!focusedMessageId) return
 
-    const mentionable: Omit<MentionableCurrentFile, 'id'> = {
-      type: 'current-file',
-      file: activeFile,
-    }
-    const withCurrentFile = (mentionables: ChatUserMessage['mentionables']) => [
-      mentionable,
-      ...withoutCurrentFile(mentionables),
-    ]
-
     if (inputMessageId === focusedMessageId) {
-      setInputMessage((prev) => ({
-        ...prev,
-        mentionables: withCurrentFile(prev.mentionables),
-      }))
+      setInputMessage((prev) => {
+        const mentionables = withCurrentFile(prev.mentionables, activeFile)
+        return mentionables === prev.mentionables
+          ? prev
+          : { ...prev, mentionables }
+      })
       return
     }
 
-    setChatMessages((prev) =>
-      prev.map((message) =>
-        message.id === focusedMessageId && message.role === 'user'
-          ? { ...message, mentionables: withCurrentFile(message.mentionables) }
-          : message,
-      ),
+    updateFocusedHistoryMessage((mentionables) =>
+      withCurrentFile(mentionables, activeFile),
     )
   }, [app, focusedMessageId, inputMessageId, setChatMessages, setInputMessage])
 

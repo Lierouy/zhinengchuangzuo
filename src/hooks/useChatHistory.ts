@@ -1,4 +1,3 @@
-import debounce from 'lodash.debounce'
 import { App } from 'obsidian'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -15,6 +14,7 @@ import {
   serializeMentionable,
 } from '../utils/chat/mentionable'
 
+import { createDebouncedSave } from './createDebouncedSave'
 import { useChatManager } from './useJsonManagers'
 
 type UseChatHistory = {
@@ -29,6 +29,12 @@ type UseChatHistory = {
   ) => Promise<void>
   /** Immediate save, bypassing the debounce. Used when the view is closing. */
   saveNow: (id: string, messages: ChatMessage[]) => Promise<void>
+  /**
+   * Writes whatever the debounce is still holding. Must run before switching or
+   * deleting a conversation: a newer save always supersedes the pending one, so
+   * an unflushed write would be dropped without ever reaching the disk.
+   */
+  flushPendingSaves: () => Promise<void>
   deleteConversation: (id: string) => Promise<void>
   getChatMessagesById: (id: string) => Promise<ChatMessage[] | null>
   updateConversationTitle: (id: string, title: string) => Promise<void>
@@ -39,72 +45,17 @@ type UseChatHistory = {
   cancelPendingSaves: () => void
 }
 
-type DebouncedSave = {
-  call: (id: string, messages: ChatMessage[]) => Promise<void>
-  flush: () => void
-  /** Drops a pending write, e.g. after the data it belongs to was deleted. */
-  cancel: () => void
-}
-
-/**
- * Debounces conversation saves while still returning a promise per call.
- * A superseded call resolves without writing (the newer call owns the write),
- * so awaiting callers never hang and never see a stale error.
- */
-function createDebouncedSave(
-  save: (id: string, messages: ChatMessage[]) => Promise<void>,
-): DebouncedSave {
-  let pendingResolve: (() => void) | null = null
-  let pendingReject: ((error: unknown) => void) | null = null
-
-  const settlePending = () => {
-    pendingResolve?.()
-    pendingResolve = null
-    pendingReject = null
-  }
-
-  const run = async (id: string, messages: ChatMessage[]) => {
-    const resolve = pendingResolve
-    const reject = pendingReject
-    pendingResolve = null
-    pendingReject = null
-    try {
-      await save(id, messages)
-      resolve?.()
-    } catch (error) {
-      if (reject) reject(error)
-      else throw error
-    }
-  }
-
-  const debounced = debounce(run, 300, { maxWait: 1000 })
-
-  return {
-    call: (id, messages) => {
-      // A newer call supersedes the pending one; resolve it so its awaiter
-      // does not hang forever.
-      settlePending()
-      return new Promise<void>((resolve, reject) => {
-        pendingResolve = resolve
-        pendingReject = reject
-        void debounced(id, messages)
-      })
-    },
-    flush: () => {
-      // `run` settles the pending promise itself once the write completes.
-      void debounced.flush()
-    },
-    cancel: () => {
-      settlePending()
-      debounced.cancel()
-    },
-  }
-}
-
 export function useChatHistory(): UseChatHistory {
   const app = useApp()
   const chatManager = useChatManager()
   const [chatList, setChatList] = useState<ChatConversationMetadata[]>([])
+  /**
+   * Conversations this view has seen on disk. A save whose target is missing
+   * only creates a file for a conversation that was never stored; if it was
+   * known before, it has been deleted (here, in another window or by the user)
+   * and recreating it from memory would resurrect deleted data.
+   */
+  const knownConversationIds = useRef(new Set<string>())
 
   // Keeps the dropdown in sync without rescanning the chat directory: the
   // manager returns the conversation it just wrote, which is all we need.
@@ -138,7 +89,18 @@ export function useChatHistory(): UseChatHistory {
       // writes when something actually changed.
       const updated = await chatManager.updateMessages(id, serializedMessages)
       if (updated) {
+        knownConversationIds.current.add(id)
         upsertChatList(toChatMetadata(updated))
+        return
+      }
+
+      if (knownConversationIds.current.has(id)) {
+        // The file is gone: it was deleted while this view kept its copy in
+        // memory. Writing it back would restore a conversation the user
+        // removed, so drop the save instead.
+        console.warn(
+          `The conversation ${id} has not been saved, is no longer exists on disk`,
+        )
         return
       }
 
@@ -153,6 +115,7 @@ export function useChatHistory(): UseChatHistory {
           : 'New chat',
         messages: serializedMessages,
       })
+      knownConversationIds.current.add(id)
       upsertChatList(toChatMetadata(created))
     },
     [chatManager, upsertChatList],
@@ -165,7 +128,7 @@ export function useChatHistory(): UseChatHistory {
   saveConversationRef.current = saveConversation
 
   const [debouncedSave] = useState(() =>
-    createDebouncedSave((id, messages) =>
+    createDebouncedSave<ChatMessage>((id, messages) =>
       saveConversationRef.current(id, messages),
     ),
   )
@@ -173,7 +136,7 @@ export function useChatHistory(): UseChatHistory {
   useEffect(() => {
     return () => {
       // Flush pending writes so nothing is lost when the view closes.
-      debouncedSave.flush()
+      void debouncedSave.flush()
     }
   }, [debouncedSave])
 
@@ -193,9 +156,15 @@ export function useChatHistory(): UseChatHistory {
     debouncedSave.cancel()
   }, [debouncedSave])
 
+  const flushPendingSaves = useCallback(
+    (): Promise<void> => debouncedSave.flush(),
+    [debouncedSave],
+  )
+
   const deleteConversation = useCallback(
     async (id: string): Promise<void> => {
       if (!(await chatManager.deleteChat(id))) return
+      knownConversationIds.current.delete(id)
       setChatList((prev) => prev.filter((chat) => chat.id !== id))
     },
     [chatManager],
@@ -207,6 +176,7 @@ export function useChatHistory(): UseChatHistory {
       if (!conversation) {
         return null
       }
+      knownConversationIds.current.add(id)
       return conversation.messages.map((message) =>
         deserializeChatMessage(message, app),
       )
@@ -230,6 +200,7 @@ export function useChatHistory(): UseChatHistory {
   return {
     createOrUpdateConversation,
     saveNow,
+    flushPendingSaves,
     deleteConversation,
     getChatMessagesById,
     updateConversationTitle,

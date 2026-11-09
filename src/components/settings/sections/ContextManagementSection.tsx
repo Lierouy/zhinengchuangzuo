@@ -210,12 +210,12 @@ export function ContextManagementSection({
         desc="创建和选择当前生效的提示组。"
         required={showRequired}
       >
-        <ObsidianButton text="管理" onClick={handleOpenManageModal} cta />
         <ObsidianDropdown
           value={selectedGroupId}
           options={groupOptions}
           onChange={handleSelectGroup}
         />
+        <ObsidianButton text="管理" onClick={handleOpenManageModal} cta />
       </ObsidianSetting>
 
       <div className="zncz-settings-table-container">

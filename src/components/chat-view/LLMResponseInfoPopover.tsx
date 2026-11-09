@@ -25,15 +25,15 @@ export default function LLMResponseInfoPopover({
           <CircleGauge size={12} />
         </button>
       </Popover.Trigger>
-      {usage ? (
-        <Popover.Content
-          className="zncz-popover-content zncz-llm-info-content"
-          side="bottom"
-          sideOffset={3}
-          collisionPadding={12}
-          avoidCollisions={true}
-        >
-          <div className="zncz-llm-info-tokens">
+      <Popover.Content
+        className="zncz-popover-content zncz-llm-info-content"
+        side="bottom"
+        sideOffset={3}
+        collisionPadding={12}
+        avoidCollisions={true}
+      >
+        <div className="zncz-llm-info-tokens">
+          {usage && (
             <div className="zncz-llm-info-tokens-grid">
               <div className="zncz-llm-info-token-row">
                 <ArrowUpToLine className="zncz-llm-info-icon--input" />
@@ -57,22 +57,18 @@ export default function LLMResponseInfoPopover({
                 </span>
               </div>
             </div>
-            {model && (
-              <div className="zncz-llm-info-footer-row">
-                <Activity className="zncz-llm-info-icon--footer" />
-                <span>模型：</span>
-                <span className="zncz-llm-info-model zncz-llm-info-footer-value">
-                  {model}
-                </span>
-              </div>
-            )}
-          </div>
-        </Popover.Content>
-      ) : (
-        <Popover.Content className="zncz-popover-content">
-          <div>(无法统计数据)</div>
-        </Popover.Content>
-      )}
+          )}
+          {model && (
+            <div className="zncz-llm-info-footer-row">
+              <Activity className="zncz-llm-info-icon--footer" />
+              <span>模型：</span>
+              <span className="zncz-llm-info-model zncz-llm-info-footer-value">
+                {model}
+              </span>
+            </div>
+          )}
+        </div>
+      </Popover.Content>
     </Popover.Root>
   )
 }

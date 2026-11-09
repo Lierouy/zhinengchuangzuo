@@ -327,12 +327,13 @@ function ChatModelFormComponent({
       />
 
       <ObsidianSetting>
+        {/* Cancel on the left, action on the right. */}
+        <ObsidianButton text="取消" onClick={onClose} />
         <ObsidianButton
           text={chatModel ? '保存' : '添加'}
           onClick={handleSubmit}
           cta
         />
-        <ObsidianButton text="取消" onClick={onClose} />
       </ObsidianSetting>
     </>
   )

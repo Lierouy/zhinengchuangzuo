@@ -16,7 +16,7 @@ const EMPTY_USAGE: ResponseUsage = {
 }
 
 /** Appended to the answer when the model hit its output limit. */
-const TRUNCATION_SUFFIX = '\n==(截断)=='
+const TRUNCATION_SUFFIX = '\n(截断)'
 
 /**
  * Providers report the output limit differently: OpenAI uses `length`, Anthropic

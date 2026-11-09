@@ -18,7 +18,7 @@ type UseChatStreamManagerParams = {
 }
 
 export type UseChatStreamManager = {
-  abortActiveStreams: () => void
+  abortActiveStreams: () => number
   submitChatMutation: UseMutationResult<
     void,
     Error,
@@ -37,11 +37,17 @@ export function useChatStreamManager({
 
   const activeStreamAbortControllersRef = useRef<AbortController[]>([])
 
-  const abortActiveStreams = useCallback(() => {
-    for (const abortController of activeStreamAbortControllersRef.current) {
+  /**
+   * Aborts every running stream and returns how many were stopped, so callers
+   * that replace a response can tell the user instead of silently dropping it.
+   */
+  const abortActiveStreams = useCallback((): number => {
+    const controllers = activeStreamAbortControllersRef.current
+    for (const abortController of controllers) {
       abortController.abort()
     }
     activeStreamAbortControllersRef.current = []
+    return controllers.length
   }, [])
 
   const registerAbortController = useCallback((c: AbortController) => {
