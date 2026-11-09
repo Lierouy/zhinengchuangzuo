@@ -212,7 +212,7 @@ function ChatModelFormComponent({
 
       <ObsidianSetting
         name="模型 ID"
-        desc="填写提供商发布的模型 ID 调用对应的模型。"
+        desc="填写提供商展示的模型 ID 调用对应的模型。"
         required
       >
         <div style={{ marginTop: '8px' }}>
