@@ -18,11 +18,11 @@ export const MAX_NAME_LENGTH = 40
  */
 const COMMON_ADDITIONAL_SETTINGS = [
   {
-    label: '无请求标头',
+    label: '去除请求标头',
     key: 'noStainless',
     type: 'toggle',
     required: false,
-    description: '如果部分提供商或中转接口发生兼容性错误，可以开启此选项。',
+    description: '如果部分提供商或中转接口发生兼容性错误，可以开启本选项。',
   },
 ] as const
 

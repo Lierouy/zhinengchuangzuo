@@ -12,7 +12,7 @@ export function ChatSection() {
     <div className="zncz-settings-section">
       <div className="zncz-settings-header">会话</div>
 
-      <ObsidianSetting name="会话模型" desc="选择作为智能助手的语言模型。">
+      <ObsidianSetting name="会话模型" desc="选择作为创作助手的语言模型。">
         <ObsidianDropdown
           value={settings.chatModelId}
           options={Object.fromEntries(
@@ -31,7 +31,7 @@ export function ChatSection() {
 
       <ObsidianSetting
         name="自动提交当前文件"
-        desc="将当前打开的文件内容包含在会话中，也可以在会话框中输入 @ 符号手动提交文件。"
+        desc="将当前展示的文件添加在会话内容中，也可以在会话框中输入 @ 符号手动提交文件。"
       >
         <ObsidianToggle
           value={settings.chatOptions.includeCurrentFileContent}
@@ -49,7 +49,7 @@ export function ChatSection() {
 
       <ObsidianSetting
         name="文件字数上限"
-        desc="限制自动提交文件，手动提交文件和文件夹内容的总字数，留空使用默认值 100000。"
+        desc="限制提交文件和文件夹内容的总字数，留空使用默认值 100000。"
       >
         <ObsidianNumberInput
           value={settings.chatOptions.chatMaxFileChars}

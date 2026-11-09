@@ -75,7 +75,7 @@ function ErrorModalComponent({
               setting.openTabById('zhinengchuangzuo')
             }}
           >
-            打开设置
+            开启设置
           </button>
         )}
       </div>

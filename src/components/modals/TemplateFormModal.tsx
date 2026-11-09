@@ -141,11 +141,7 @@ function TemplateFormComponent({
         }}
       />
 
-      <ObsidianSetting
-        name="提示内容"
-        desc="输入到会话框中的文本内容。"
-        required
-      />
+      <ObsidianSetting name="提示内容" required />
       <div className="zncz-settings-textarea">
         <ObsidianTextArea
           value={templateContent}

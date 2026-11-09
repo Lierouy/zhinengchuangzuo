@@ -50,12 +50,12 @@ export function HandleSection({
     <div className="zncz-settings-section">
       <div className="zncz-settings-header">单独处理</div>
       <div className="zncz-settings-desc">
-        隔离其他上下文，单独调用模型处理当前打开的文件，还会解析文件中的内部链接。
+        隔离其他上下文，单独调用模型处理当前展示的文件，还会解析文件中的内部链接。
       </div>
 
       <ObsidianSetting
         name="处理提示"
-        desc="使用预设提示作为单独处理文件的系统提示。"
+        desc="使用预设提示作为处理文件内容的系统提示。"
         required={showRequired}
       >
         <ObsidianDropdown
@@ -72,7 +72,7 @@ export function HandleSection({
 
       <ObsidianSetting
         name="有效链接数量"
-        desc="限制被链接附加的内容数量，留空使用默认值 30。"
+        desc="限制被解析的链接内容数量，留空使用默认值 30。"
       >
         <div style={{ marginTop: '3px' }} />
         <ObsidianNumberInput

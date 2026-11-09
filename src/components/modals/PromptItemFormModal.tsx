@@ -242,7 +242,7 @@ function PromptItemFormComponent({
           {/* 过滤词 */}
           <ObsidianSetting
             name="过滤词"
-            desc="匹配后进行额外逻辑判断，词之间用空格分隔，留空则无过滤。"
+            desc="命中后进行额外逻辑判断，词之间用空格分隔，留空则无过滤。"
           >
             <div style={{ marginTop: '3px' }} />
             <ObsidianDropdown<FilterLogic>

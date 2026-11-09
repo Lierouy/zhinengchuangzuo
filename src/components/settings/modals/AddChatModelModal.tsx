@@ -212,7 +212,7 @@ function ChatModelFormComponent({
 
       <ObsidianSetting
         name="模型 ID"
-        desc="填写提供商展示的模型 ID 调用对应的模型。"
+        desc="调用目标模型必需的字符串凭证。"
         required
       >
         <div style={{ marginTop: '8px' }}>
@@ -255,7 +255,7 @@ function ChatModelFormComponent({
 
       <ObsidianSetting
         name="历史消息数量"
-        desc="发送消息时包含的过去消息数量上限，留空使用默认值 50。"
+        desc="限制发送消息时包含的从前消息数量，留空使用默认值 50。"
       >
         <div style={{ marginTop: '8px' }}>
           <ObsidianNumberInput
