@@ -50,7 +50,10 @@ export class ChatView extends ItemView {
 
   render() {
     if (!this.root) {
-      this.root = createRoot(this.containerEl.children[1])
+      // `contentEl` is Obsidian's public accessor for this container; indexing
+      // into `containerEl.children` would re-derive it from the DOM layout.
+      this.contentEl.empty()
+      this.root = createRoot(this.contentEl)
     }
 
     // Reuse a single QueryClient for the lifetime of the view so caches and

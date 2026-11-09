@@ -28,11 +28,11 @@ export function ProvidersSection({ app, plugin }: ProvidersSectionProps) {
     )
 
     const message =
-      `确定要删除供应商“ ${provider.id} ”吗？\n` +
+      `确定要删除提供商“ ${provider.id} ”吗？\n` +
       `同时也会删除 ${associatedChatModels.length} 个模型。`
 
     new ConfirmModal(app, {
-      title: '删除供应商',
+      title: '删除提供商',
       message: message,
       ctaText: '确定',
       onConfirm: async () => {
@@ -60,7 +60,7 @@ export function ProvidersSection({ app, plugin }: ProvidersSectionProps) {
 
   return (
     <div className="zncz-settings-section">
-      <div className="zncz-settings-header">供应商</div>
+      <div className="zncz-settings-header">提供商</div>
 
       <div className="zncz-settings-table-container">
         <table className="zncz-settings-table">
@@ -110,7 +110,7 @@ export function ProvidersSection({ app, plugin }: ProvidersSectionProps) {
                     new AddProviderModal(app, plugin).open()
                   }}
                 >
-                  添加供应商
+                  添加提供商
                 </button>
               </td>
             </tr>

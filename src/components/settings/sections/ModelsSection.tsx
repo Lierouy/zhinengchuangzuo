@@ -67,7 +67,7 @@ export function ModelsSection({ app, plugin }: ModelsSectionProps) {
           <thead>
             <tr>
               <th>名称</th>
-              <th>供应商</th>
+              <th>提供商</th>
               <th>启用</th>
               <th>操作</th>
             </tr>

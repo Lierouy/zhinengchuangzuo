@@ -32,7 +32,7 @@ export class AddProviderModal extends ReactModal<ProviderFormComponentProps> {
       Component: ProviderFormComponent,
       props: { plugin, provider: null },
       options: {
-        title: '添加供应商',
+        title: '添加提供商',
       },
     })
   }
@@ -45,7 +45,7 @@ export class EditProviderModal extends ReactModal<ProviderFormComponentProps> {
       Component: ProviderFormComponent,
       props: { plugin, provider },
       options: {
-        title: `编辑供应商：${provider.id}`,
+        title: `编辑提供商：${provider.id}`,
       },
     })
   }
@@ -152,7 +152,7 @@ function ProviderFormComponent({
       )}
 
       <>
-        <ObsidianSetting name="供应商类型" required>
+        <ObsidianSetting name="提供商类型" required>
           <div style={{ marginTop: '8px' }}></div>
           <ObsidianDropdown
             value={formData.type}
@@ -198,7 +198,7 @@ function ProviderFormComponent({
 
       <ObsidianSetting
         name="模型思考字段"
-        desc="如果模型无法展示思考内容，可以浏览供应商文档查找并填写思考字段，留空使用默认字段。"
+        desc="如果模型无法展示思考内容，可以浏览提供商文档查找并填写思考字段，留空使用默认字段。"
       >
         <div style={{ marginTop: '8px' }}></div>
         <ObsidianTextInput

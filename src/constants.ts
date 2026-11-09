@@ -3,7 +3,7 @@ import { LLMProviderType } from './types/provider.types'
 export const CHAT_VIEW_TYPE = 'zncz-chat-view'
 
 /**
- * 名称类字段的统一长度上限：供应商名称、模型名称、预设提示名称、
+ * 名称类字段的统一长度上限：提供商名称、模型名称、预设提示名称、
  * 提示组名称、组内系统提示名称、会话标题。
  */
 export const MAX_NAME_LENGTH = 40
@@ -22,7 +22,7 @@ const COMMON_ADDITIONAL_SETTINGS = [
     key: 'noStainless',
     type: 'toggle',
     required: false,
-    description: '如果部分供应商或中转接口发生兼容性错误，可以开启此选项。',
+    description: '如果部分提供商或中转接口发生兼容性错误，可以开启此选项。',
   },
 ] as const
 
