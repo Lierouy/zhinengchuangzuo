@@ -1,5 +1,5 @@
 import * as Popover from '@radix-ui/react-popover'
-import { Check, Edit, Trash, X } from 'lucide-react'
+import { Check, SquarePen, Trash, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { MAX_NAME_LENGTH } from '../../constants'
@@ -131,7 +131,7 @@ function ChatListItem({
               }}
               className="clickable-icon zncz-chat-list-dropdown-item-icon"
             >
-              <Edit size={16} />
+              <SquarePen size={16} />
             </button>
             <button
               onClick={(e) => {

@@ -1,4 +1,4 @@
-import { Check, Edit, Trash, X } from 'lucide-react'
+import { Check, SquarePen, Trash, X } from 'lucide-react'
 import { ReactNode } from 'react'
 
 export type InlineEditTableRow = {
@@ -67,7 +67,7 @@ export function InlineEditTable({
                         onClick={row.onStartEdit}
                         className="clickable-icon"
                       >
-                        <Edit size={16} />
+                        <SquarePen size={16} />
                       </button>
                       <button onClick={row.onDelete} className="clickable-icon">
                         <Trash size={16} />

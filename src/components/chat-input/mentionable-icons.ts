@@ -1,8 +1,8 @@
-import { Clipboard, FileIcon, FolderClosedIcon, ImageIcon } from 'lucide-react'
+import { Clipboard, File, FolderClosed, Image } from 'lucide-react'
 
 import { Mentionable } from '../../types/mentionable'
 
-type MentionableIcon = typeof FileIcon
+type MentionableIcon = typeof File
 
 /**
  * Icon per mentionable type. Kept as a lookup table rather than a helper so the
@@ -12,9 +12,9 @@ export const MENTIONABLE_ICONS: Record<
   Mentionable['type'],
   MentionableIcon | null
 > = {
-  file: FileIcon,
-  folder: FolderClosedIcon,
-  'current-file': FileIcon,
+  file: File,
+  folder: FolderClosed,
+  'current-file': File,
   block: Clipboard,
-  image: ImageIcon,
+  image: Image,
 }

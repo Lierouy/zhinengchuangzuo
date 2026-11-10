@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, Edit, Trash } from 'lucide-react'
+import { ArrowDown, ArrowUp, SquarePen, Trash } from 'lucide-react'
 import { App } from 'obsidian'
 import { useCallback, useEffect, useState } from 'react'
 
@@ -202,7 +202,7 @@ function TemplateItem({
       <td>
         <div className="zncz-settings-actions">
           <button className="clickable-icon" onClick={onEdit}>
-            <Edit size={16} />
+            <SquarePen size={16} />
           </button>
           <button className="clickable-icon" onClick={onDelete}>
             <Trash size={16} />

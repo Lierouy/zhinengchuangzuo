@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, Edit, Trash } from 'lucide-react'
+import { ArrowDown, ArrowUp, SquarePen, Trash } from 'lucide-react'
 import { App, Notice } from 'obsidian'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
@@ -272,7 +272,7 @@ export function ContextManagementSection({
                         onClick={() => handleEditPrompt(item)}
                         className="clickable-icon"
                       >
-                        <Edit size={16} />
+                        <SquarePen size={16} />
                       </button>
                       <button
                         onClick={() => handleDeletePrompt(item)}

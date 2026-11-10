@@ -1,4 +1,4 @@
-import { Check, CopyIcon, FileInput, Trash } from 'lucide-react'
+import { Check, Copy, FileInput, Trash } from 'lucide-react'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useApp } from '../../contexts/app-context'
@@ -189,7 +189,7 @@ function UserMessageItem({
           disabled={isLoading}
           aria-label="复制"
         >
-          {copied ? <Check size={12} /> : <CopyIcon size={12} />}
+          {copied ? <Check size={12} /> : <Copy size={12} />}
         </button>
       </div>
     </div>
