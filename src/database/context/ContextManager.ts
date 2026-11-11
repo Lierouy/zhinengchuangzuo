@@ -79,7 +79,11 @@ export class ContextManager extends AbstractJsonRepository<
     const files = await this.listMetadata()
     const byId = new Map(files.map((item) => [item.metadata, item.fileName]))
     const kept = stored.filter((entry) => byId.has(entry.id))
-    if (kept.length === files.length) return kept
+    // A ghost entry (file already gone) must still be dropped from the card,
+    // so an empty file list only counts as "in sync" when the card was empty.
+    if (kept.length === files.length && kept.length === stored.length) {
+      return kept
+    }
 
     const known = new Set(kept.map((entry) => entry.id))
     const added: PromptGroupIndexEntry[] = []

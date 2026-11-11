@@ -16,6 +16,9 @@ tsconfig.tsbuildinfo
 # npm
 node_modules
 
+# test output
+coverage
+
 # Exclude sourcemaps
 *.map
 
