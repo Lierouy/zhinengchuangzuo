@@ -223,13 +223,15 @@ src/
 
 ### 持续集成
 
-`.github/workflows/ci.yml` 在推送到 `main` 以及所有 Pull Request 上执行：
+`.github/workflows/ci.yml` 配置为手动触发（`workflow_dispatch`），推送与 Pull Request 不会自动运行。在仓库的 Actions 页面选择 `CI` 工作流并点击运行即可，它依次执行：
 
 1. `npm ci`
 2. `npm run lint:check`
 3. `npm run type:check`
 4. `npm run test:coverage`
 5. `npm run build`
+
+本地对应的检查命令是 `npm run verify`（不含构建）。
 
 ## 已知限制
 
