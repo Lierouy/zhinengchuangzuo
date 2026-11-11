@@ -21,7 +21,7 @@ export const ChatViewProvider = ({
 export const useChatView = () => {
   const chatView = React.useContext(ChatViewContext)
   if (!chatView) {
-    throw new Error('UseChatView must be used within a ChatViewProvider')
+    throw new Error('The chat view must be used within a chat view provider')
   }
   return chatView
 }

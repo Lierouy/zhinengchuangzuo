@@ -176,8 +176,9 @@ export default class ZhinengchuangzuoPlugin extends Plugin {
       zhinengchuangzuoSettingsSchema.safeParse(newSettings)
 
     if (!validationResult.success) {
-      new Notice(`Invalid settings:
-${validationResult.error.issues.map((v) => v.message).join('\n')}`)
+      new Notice(
+        `Invalid settings: ${validationResult.error.issues.map((v) => v.message).join(', ')}`,
+      )
       return
     }
 

@@ -52,7 +52,7 @@ export const SettingsProvider = ({
 export const useSettings = () => {
   const settings = React.useContext(SettingsContext)
   if (!settings) {
-    throw new Error('UseSettings must be used within a SettingsProvider')
+    throw new Error('The settings must be used within a settings provider')
   }
   return settings
 }

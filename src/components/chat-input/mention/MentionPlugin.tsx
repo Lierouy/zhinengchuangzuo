@@ -115,7 +115,7 @@ class MentionTypeaheadOption extends MenuOption {
       default: {
         const exhaustiveCheck: never = result
         throw new Error(
-          `Unsupported mentionable type: ${JSON.stringify(exhaustiveCheck)}`,
+          `Unsupported mentionable type ${JSON.stringify(exhaustiveCheck)}`,
         )
       }
     }

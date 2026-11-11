@@ -43,12 +43,12 @@ export function createOpenAIProvider(
     request: T,
   ): T => {
     if (model.providerType !== 'openai-compatible') {
-      throw new Error('Model is not an OpenAI Compatible model')
+      throw new Error('Model is not an OpenAI compatible model')
     }
     if (!provider.baseUrl) {
       throw new LLMException(
         'base-url-not-set',
-        `Provider ${provider.id} base URL is missing, please set it in settings menu`,
+        `Provider ${provider.id} base URL is missing`,
       )
     }
     return { ...request, messages: formatMessages(request.messages) }

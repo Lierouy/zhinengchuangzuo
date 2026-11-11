@@ -50,7 +50,7 @@ export abstract class AbstractJsonRepository<T, M> {
     const content = JSON.stringify(row, null, 2)
 
     if (await this.app.vault.adapter.exists(filePath)) {
-      throw new Error(`File already exists: ${filePath}`)
+      throw new Error(`The file ${filePath} already exists`)
     }
 
     await this.app.vault.adapter.write(filePath, content)

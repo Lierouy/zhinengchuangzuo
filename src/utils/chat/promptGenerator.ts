@@ -25,7 +25,7 @@ function findLastUserIndex(messages: ChatMessage[]): number {
 
 /** Text part standing in for images whose payload is not sent to the model. */
 function imagePlaceholderBlock(names: string[]): string {
-  return `<image>\n${names.join('\n')}\n</image>`
+  return `<image>\n<note>(原图片未保留)</note>\n<name>\n${names.join('\n')}\n</name>\n</image>`
 }
 
 export class PromptGenerator {
@@ -322,7 +322,7 @@ export class PromptGenerator {
         fileContents.reduce((s, c) => s + c.length, 0)
       if (isLatest && totalFileChars > MAX_FILE_CHARS) {
         throw new Error(
-          `The total number of characters in mounted files ${totalFileChars} exceeds the limit ${MAX_FILE_CHARS}`,
+          `The total number of characters in files ${totalFileChars} exceeds the limit ${MAX_FILE_CHARS}`,
         )
       }
 

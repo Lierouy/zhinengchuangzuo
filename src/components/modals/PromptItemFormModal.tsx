@@ -129,7 +129,7 @@ function PromptItemFormComponent({
   const handleSubmit = async () => {
     const trimmedName = name.trim()
     if (!trimmedName) {
-      new Notice('Name cannot be empty')
+      new Notice('The name cannot be empty')
       return
     }
     const trimmedContent = content.trim()

@@ -17,7 +17,7 @@ export const AppProvider = ({
 export const useApp = () => {
   const app = React.useContext(AppContext)
   if (!app) {
-    throw new Error('UseApp must be used within an AppProvider')
+    throw new Error('The App must be used within a App provider')
   }
   return app
 }

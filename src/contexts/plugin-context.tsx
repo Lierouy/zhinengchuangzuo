@@ -22,7 +22,7 @@ export const PluginProvider = ({
 export const usePlugin = () => {
   const plugin = React.useContext(PluginContext)
   if (!plugin) {
-    throw new Error('UsePlugin must be used within a PluginProvider')
+    throw new Error('The plugin must be used within a plugin provider')
   }
   return plugin
 }

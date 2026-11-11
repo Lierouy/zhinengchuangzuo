@@ -46,12 +46,12 @@ export function createAnthropicProvider(
 
   const validateModelAndApiKey = (model: ChatModel): void => {
     if (model.providerType !== 'anthropic-compatible') {
-      throw new Error('Model is not an Anthropic Compatible model')
+      throw new Error('Model is not an Anthropic compatible model')
     }
     if (!apiKey) {
       throw new LLMException(
         'api-key-not-set',
-        `Provider ${provider.id} API key is missing, please set it in settings menu`,
+        `Provider ${provider.id} API key is missing`,
       )
     }
   }
@@ -83,7 +83,7 @@ export function createAnthropicProvider(
     if (error instanceof Anthropic.APIError && error.status === 401) {
       throw new LLMException(
         'api-key-invalid',
-        `Provider ${provider.id} API key is invalid, please update it in settings menu`,
+        `Provider ${provider.id} API key is invalid`,
         error as Error,
       )
     }

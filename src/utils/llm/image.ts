@@ -161,7 +161,7 @@ function renderScaled(
   canvas.height = height
   const ctx = canvas.getContext('2d')
   if (!ctx) {
-    throw new Error('Failed to get canvas 2d context')
+    throw new Error('Failed to get plane canvas context')
   }
   ctx.imageSmoothingEnabled = true
   ctx.imageSmoothingQuality = 'high'
