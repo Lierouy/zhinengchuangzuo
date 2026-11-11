@@ -23,9 +23,9 @@ function findLastUserIndex(messages: ChatMessage[]): number {
   return -1
 }
 
-/** Text part standing in for an image whose payload is not sent to the model. */
-function imagePlaceholder(name: string): string {
-  return `<image>${name}</image>`
+/** Text part standing in for images whose payload is not sent to the model. */
+function imagePlaceholderBlock(names: string[]): string {
+  return `<image>\n${names.join('\n')}\n</image>`
 }
 
 export class PromptGenerator {
@@ -367,20 +367,22 @@ export class PromptGenerator {
         query,
       ].filter((p) => p.length > 0)
 
-      // Only the newest turn sends the pixels. Older turns get a placeholder
-      // part directly, so their base64 payload is never assembled into the
-      // prompt just to be discarded afterwards.
-      const contentParts: ContentPart[] = isLatest
-        ? imageMentionables.map(({ data }): ContentPart => ({
-            type: 'image_url',
-            image_url: {
-              url: data,
-            },
-          }))
-        : imageMentionables.map(({ name }): ContentPart => ({
-            type: 'text',
-            text: imagePlaceholder(name),
-          }))
+      // Only the newest turn sends the pixels. Older turns get a single
+      // placeholder part listing every attached image, so their base64 payload
+      // is never assembled into the prompt just to be discarded afterwards.
+      const contentParts: ContentPart[] = []
+      if (isLatest) {
+        for (const { data } of imageMentionables) {
+          contentParts.push({ type: 'image_url', image_url: { url: data } })
+        }
+      } else if (imageMentionables.length > 0) {
+        contentParts.push({
+          type: 'text',
+          text: imagePlaceholderBlock(
+            imageMentionables.map(({ name }) => name),
+          ),
+        })
+      }
       // An image-only message gets no text part: an empty text block is
       // rejected by some providers (Anthropic requires text blocks to be
       // non-empty). An empty editor still yields a lone newline, hence the

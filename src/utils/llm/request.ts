@@ -1,7 +1,7 @@
 import { ContentPart, RequestMessage } from '../../types/request'
 
 /** Separator marking where two messages were merged into one. */
-const MESSAGE_SEPARATOR = '\n\n---\n'
+const MESSAGE_SEPARATOR = '\n\n---\n\n'
 
 const toParts = (content: string | ContentPart[]): ContentPart[] =>
   typeof content === 'string' ? [{ type: 'text', text: content }] : content
