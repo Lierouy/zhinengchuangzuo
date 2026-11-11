@@ -1,29 +1,47 @@
 import { ContentPart, RequestMessage } from '../../types/request'
 
+/** Separator marking where two messages were merged into one. */
+const MESSAGE_SEPARATOR = '\n\n---\n'
+
+const toParts = (content: string | ContentPart[]): ContentPart[] =>
+  typeof content === 'string' ? [{ type: 'text', text: content }] : content
+
+/** A text part that carries no content, e.g. an empty body after stripping. */
+const isBlankPart = (part: ContentPart): boolean =>
+  part.type === 'text' && part.text.trim().length === 0
+
+/** True when the content has nothing to send (no text and no images). */
+const isEmptyContent = (content: string | ContentPart[]): boolean =>
+  typeof content === 'string'
+    ? content.trim().length === 0
+    : content.every(isBlankPart)
+
 /**
  * Concatenates message contents, handling both string and ContentPart[] formats.
  * Returns either a string or ContentPart[] depending on the message role.
+ *
+ * The boundary between the two messages is kept in both shapes: text-only
+ * content joins the texts, while content with images gets an explicit separator
+ * part so the messages do not silently run into each other.
  */
 function concatenateMessageContent(
   prevContent: string | ContentPart[],
   currentContent: string | ContentPart[],
 ): string | ContentPart[] {
-  const prevParts: ContentPart[] =
-    typeof prevContent === 'string'
-      ? [{ type: 'text', text: prevContent }]
-      : prevContent
-  const currParts: ContentPart[] =
-    typeof currentContent === 'string'
-      ? [{ type: 'text', text: currentContent }]
-      : currentContent
+  const prevParts = toParts(prevContent).filter((part) => !isBlankPart(part))
+  const currParts = toParts(currentContent).filter((part) => !isBlankPart(part))
 
-  const merged = [...prevParts, ...currParts].filter(
-    (part) => !(part.type === 'text' && part.text.trim().length === 0),
-  )
+  const merged = [...prevParts, ...currParts]
+  if (merged.length === 0) return ''
+
   if (merged.every((part) => part.type === 'text')) {
-    return merged.map((part) => part.text).join('\n---\n')
+    return merged.map((part) => part.text).join(MESSAGE_SEPARATOR)
   }
-  return merged
+
+  // No boundary left to mark when one side contributed nothing.
+  if (prevParts.length === 0 || currParts.length === 0) return merged
+
+  return [...prevParts, { type: 'text', text: MESSAGE_SEPARATOR }, ...currParts]
 }
 
 /**
@@ -49,7 +67,7 @@ export function formatMessages(messages: RequestMessage[]): RequestMessage[] {
     const combinedSystemContent = systemMessages
       .map((msg) => (typeof msg.content === 'string' ? msg.content : ''))
       .filter((content) => content.trim().length > 0)
-      .join('\n---\n')
+      .join(MESSAGE_SEPARATOR)
 
     if (combinedSystemContent.trim().length > 0) {
       formattedMessages.push({
@@ -72,7 +90,9 @@ export function formatMessages(messages: RequestMessage[]): RequestMessage[] {
           currentMessage.content,
         ),
       } as RequestMessage
-    } else {
+    } else if (!isEmptyContent(currentMessage.content)) {
+      // A blank turn carries no information and some providers reject it, so
+      // it is dropped instead of being sent (or merged into a later message).
       formattedMessages.push({ ...currentMessage })
     }
   }

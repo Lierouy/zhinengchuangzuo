@@ -1,9 +1,11 @@
+// File bodies are trimmed like excerpt text, so a trailing newline in the
+// source file does not add a blank line before `</body>`.
 export function buildBrowsingFileBlock(path: string, content: string): string {
-  return `<file type="用户正在浏览">\n<path>${path}</path>\n<body>\n${content}\n</body>\n</file>\n`
+  return `<file type="用户正在浏览">\n<path>${path}</path>\n<body>\n${content.trim()}\n</body>\n</file>\n`
 }
 
 export function buildFileBlock(link: string, body: string): string {
-  return `<file>\n<link>${link}</link>\n<body>\n${body}\n</body>\n</file>\n`
+  return `<file>\n<link>${link}</link>\n<body>\n${body.trim()}\n</body>\n</file>\n`
 }
 
 export function buildExcerptBlock(link: string, text: string): string {

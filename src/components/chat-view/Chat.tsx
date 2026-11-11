@@ -337,16 +337,11 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
         throw new Error('No chat model selected')
       }
 
-      abortActiveStreams()
-
       const lastMessage = inputChatMessages.at(-1)
-      if (lastMessage?.role !== 'user') {
-        throw new Error('Last message is not a user message')
-      }
 
       const compiledMessages = await Promise.all(
         inputChatMessages.map(async (message) => {
-          if (message.role === 'user' && message.id === lastMessage.id) {
+          if (message.role === 'user' && message.id === lastMessage?.id) {
             try {
               const currentFileRaw = message.mentionables.find(
                 (m) => m.type === 'current-file',
@@ -384,7 +379,6 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
     [
       submitChatMutation,
       promptGenerator,
-      abortActiveStreams,
       setChatMessages,
       includeCurrentFileContent,
       settings,

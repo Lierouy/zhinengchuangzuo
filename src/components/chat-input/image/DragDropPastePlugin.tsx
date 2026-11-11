@@ -4,9 +4,9 @@ import { COMMAND_PRIORITY_LOW } from 'lexical'
 import { useEffect } from 'react'
 
 import { MentionableImage } from '../../../types/mentionable'
-import { fileToMentionableImage } from '../../../utils/llm/image'
+import { isImageFile } from '../../../utils/llm/image'
 
-import { reportImageError } from './reportImageError'
+import { convertImagesSafely } from './reportImageError'
 
 export default function DragDropPaste({
   onCreateImageMentionables,
@@ -19,12 +19,14 @@ export default function DragDropPaste({
     return editor.registerCommand(
       DRAG_DROP_PASTE, // dispatched in RichTextPlugin
       (files) => {
-        const images = files.filter((file) => file.type.startsWith('image/'))
-        Promise.all(images.map((image) => fileToMentionableImage(image)))
-          .then((mentionableImages) => {
-            onCreateImageMentionables?.(mentionableImages)
+        const images = files.filter(isImageFile)
+        if (images.length > 0) {
+          void convertImagesSafely(images).then((mentionableImages) => {
+            if (mentionableImages.length > 0) {
+              onCreateImageMentionables?.(mentionableImages)
+            }
           })
-          .catch(reportImageError)
+        }
         return true
       },
       COMMAND_PRIORITY_LOW,

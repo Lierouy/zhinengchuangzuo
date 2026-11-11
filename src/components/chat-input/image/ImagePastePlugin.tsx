@@ -3,9 +3,9 @@ import { COMMAND_PRIORITY_LOW, PASTE_COMMAND, PasteCommandType } from 'lexical'
 import { useEffect } from 'react'
 
 import { MentionableImage } from '../../../types/mentionable'
-import { fileToMentionableImage } from '../../../utils/llm/image'
+import { isImageFile } from '../../../utils/llm/image'
 
-import { reportImageError } from './reportImageError'
+import { convertImagesSafely } from './reportImageError'
 
 export default function ImagePastePlugin({
   onCreateImageMentionables,
@@ -20,16 +20,14 @@ export default function ImagePastePlugin({
         event instanceof ClipboardEvent ? event.clipboardData : null
       if (!clipboardData) return false
 
-      const images = Array.from(clipboardData.files).filter((file) =>
-        file.type.startsWith('image/'),
-      )
+      const images = Array.from(clipboardData.files).filter(isImageFile)
       if (images.length === 0) return false
 
-      Promise.all(images.map((image) => fileToMentionableImage(image)))
-        .then((mentionableImages) => {
+      void convertImagesSafely(images).then((mentionableImages) => {
+        if (mentionableImages.length > 0) {
           onCreateImageMentionables?.(mentionableImages)
-        })
-        .catch(reportImageError)
+        }
+      })
       return true
     }
 

@@ -21,10 +21,9 @@ import {
   getMentionableKey,
   serializeMentionable,
 } from '../../utils/chat/mentionable'
-import { fileToMentionableImage } from '../../utils/llm/image'
 import { openMarkdownFile } from '../../utils/obsidian'
 
-import { reportImageError } from './image/reportImageError'
+import { convertImagesSafely } from './image/reportImageError'
 import { ImageUploadButton } from './ImageUploadButton'
 import LexicalContentEditable from './LexicalContentEditable'
 import { MentionNode } from './mention/MentionNode'
@@ -244,13 +243,9 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
     }
 
     const handleUploadImages = async (images: File[]) => {
-      try {
-        const mentionableImages = await Promise.all(
-          images.map((image) => fileToMentionableImage(image)),
-        )
+      const mentionableImages = await convertImagesSafely(images)
+      if (mentionableImages.length > 0) {
         handleCreateImageMentionables(mentionableImages)
-      } catch (error) {
-        reportImageError(error)
       }
     }
 
@@ -263,6 +258,9 @@ const ChatUserInput = forwardRef<ChatUserInputRef, ChatUserInputProps>(
         .length >= MAX_MENTION_COUNT
 
     const handleSubmit = () => {
+      // While a response is streaming the send button is a stop button, so
+      // Enter must not submit either.
+      if (isLoading) return
       const state = editorRef.current?.getEditorState()?.toJSON()
       if (!state) return
       // No cleanup here: the editor already reports a trimmed state through

@@ -1,12 +1,61 @@
 import { MentionableImage } from '../../types/mentionable'
 
-const MAX_IMAGE_BYTES = 1024 * 512 // 压缩目标：原始字节 ≤ 512 KB
+const MAX_IMAGE_BYTES = 1024 * 512 // 体积阈值：不超过该值的图片无需压缩
 const MAX_LONG_SIDE = 2048 // 长边上限：主流视觉模型的有效分辨率
 const MAX_PIXELS = 2_000_000 // 像素预算：约束极端长宽比的总开销
 const INITIAL_QUALITY = 0.85 // 首次编码质量
 const MIN_QUALITY = 0.55 // 质量下限：再低文字/线条会糊
 const MAX_ENCODE_ATTEMPTS = 5 // 单次压缩最多编码次数
 const JPEG_MIME_TYPE = 'image/jpeg'
+const PNG_MIME_TYPE = 'image/png'
+
+/**
+ * 两家 provider 都支持的格式；其余格式（含 gif）在添加时转码，避免请求被拒。
+ * GIF 动图只在首帧有意义，多帧数据纯属浪费，因此不做特殊对待。
+ */
+const SUPPORTED_IMAGE_MIME_TYPES = new Set([
+  JPEG_MIME_TYPE,
+  PNG_MIME_TYPE,
+  'image/webp',
+])
+
+/** `file.type` 可能为空（拖拽、部分系统），此时按扩展名推断格式。 */
+const EXTENSION_MIME_TYPES: Record<string, string> = {
+  jpg: JPEG_MIME_TYPE,
+  jpeg: JPEG_MIME_TYPE,
+  png: PNG_MIME_TYPE,
+  webp: 'image/webp',
+  gif: 'image/gif',
+  svg: 'image/svg+xml',
+  bmp: 'image/bmp',
+  avif: 'image/avif',
+  heic: 'image/heic',
+  heif: 'image/heif',
+  tif: 'image/tiff',
+  tiff: 'image/tiff',
+  ico: 'image/x-icon',
+}
+
+export function resolveImageMimeType(file: File): string {
+  const type = file.type.toLowerCase()
+  if (type === 'image/jpg') return JPEG_MIME_TYPE
+  if (type) return type
+  const extension = /\.([^./\\]+)$/.exec(file.name)?.[1]?.toLowerCase()
+  return (
+    (extension && EXTENSION_MIME_TYPES[extension]) || 'application/octet-stream'
+  )
+}
+
+/** True for files the image pipeline should try to convert. */
+export function isImageFile(file: File): boolean {
+  return resolveImageMimeType(file).startsWith('image/')
+}
+
+/** Rewrites a data URL prefix so the declared format is what the provider sees. */
+function withDataUrlMimeType(dataUrl: string, mimeType: string): string {
+  if (dataUrl.startsWith(`data:${mimeType};`)) return dataUrl
+  return dataUrl.replace(/^data:[^;,]*/, `data:${mimeType}`)
+}
 
 export function parseImageDataUrl(dataUrl: string): {
   mimeType: string
@@ -90,18 +139,22 @@ async function decodeImage(file: File): Promise<DecodedImage> {
         release: () => {},
       }
     } catch {
-      throw new Error(`Unsupported image format: ${file.type || 'unknown'}`)
+      throw new Error(
+        `Cannot convert ${resolveImageMimeType(file)}, unsupported image format`,
+      )
     }
   }
 }
 
 /**
  * 等比缩放绘制到 canvas；JPEG 没有 alpha 通道，先铺白底避免透明区域变黑。
+ * `background` 为 null 时保留透明通道（用于 PNG 转码）。
  */
 function renderScaled(
   source: CanvasImageSource,
   width: number,
   height: number,
+  background: string | null = '#ffffff',
 ): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
   canvas.width = width
@@ -112,13 +165,19 @@ function renderScaled(
   }
   ctx.imageSmoothingEnabled = true
   ctx.imageSmoothingQuality = 'high'
-  ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0, 0, width, height)
+  if (background) {
+    ctx.fillStyle = background
+    ctx.fillRect(0, 0, width, height)
+  }
   ctx.drawImage(source, 0, 0, width, height)
   return canvas
 }
 
-function encodeJPEG(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
+function encodeImage(
+  canvas: HTMLCanvasElement,
+  mimeType: string,
+  quality?: number,
+): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
       (blob) => {
@@ -128,7 +187,7 @@ function encodeJPEG(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
           reject(new Error('Failed to encode image'))
         }
       },
-      JPEG_MIME_TYPE,
+      mimeType,
       quality,
     )
   })
@@ -150,7 +209,7 @@ async function compressToFit(
   let smallest: Blob | null = null
 
   for (let attempt = 0; attempt < MAX_ENCODE_ATTEMPTS; attempt++) {
-    const blob = await encodeJPEG(canvas, quality)
+    const blob = await encodeImage(canvas, JPEG_MIME_TYPE, quality)
     if (!smallest || blob.size < smallest.size) {
       smallest = blob
     }
@@ -186,29 +245,63 @@ async function compressToFit(
 }
 
 /**
+ * 非白名单格式（GIF/SVG/AVIF/BMP 等）在保持原始尺寸的前提下转成无损 PNG，
+ * 保留透明通道；PNG 超出体积阈值时直接交给压缩流程，不再单独试 JPEG。
+ * Returns null when the PNG does not fit, so the caller falls back to compression.
+ */
+async function convertToPng(
+  source: CanvasImageSource,
+  width: number,
+  height: number,
+): Promise<Blob | null> {
+  const png = await encodeImage(
+    renderScaled(source, width, height, null),
+    PNG_MIME_TYPE,
+  )
+  return png.size <= MAX_IMAGE_BYTES ? png : null
+}
+
+/**
  * 将用户选择的图片文件转为可发送给 LLM 的结构。
  *
- * - 若文件本身已 ≤ 目标体积且像素在预算内：原样保留（无损、动图不丢帧）
- * - 否则等比缩放 + JPEG 压缩到目标体积以内
+ * - 白名单格式且体积/像素都在预算内：原样保留，不重新编码
+ * - 非白名单格式且体积/像素正常：只转格式（PNG），不缩放
+ * - 体积或像素超标，或转出的 PNG 超过阈值：等比缩放 + JPEG 压缩
+ * - 浏览器无法解码的格式：抛错，调用方负责提示并阻止添加
  */
 export async function fileToMentionableImage(
   file: File,
 ): Promise<MentionableImage> {
+  const declaredMime = resolveImageMimeType(file)
   const decoded = await decodeImage(file)
   try {
     const target = fitToBudget(decoded.width, decoded.height)
-    const fitsOriginal =
+    const withinBudget =
       file.size <= MAX_IMAGE_BYTES &&
       target.width === decoded.width &&
       target.height === decoded.height
 
-    if (fitsOriginal) {
+    if (withinBudget && SUPPORTED_IMAGE_MIME_TYPES.has(declaredMime)) {
       const data = decoded.dataUrl ?? (await readFileAsDataURL(file))
       return {
         type: 'image',
         name: file.name,
-        mimeType: parseImageDataUrl(data).mimeType,
-        data,
+        mimeType: declaredMime,
+        // Providers read the format from the data URL prefix, which is derived
+        // from `file.type` and may be missing for dragged files.
+        data: withDataUrlMimeType(data, declaredMime),
+      }
+    }
+
+    const converted = withinBudget
+      ? await convertToPng(decoded.source, decoded.width, decoded.height)
+      : null
+    if (converted) {
+      return {
+        type: 'image',
+        name: file.name,
+        mimeType: PNG_MIME_TYPE,
+        data: await readFileAsDataURL(converted),
       }
     }
 

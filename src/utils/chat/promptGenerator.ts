@@ -15,6 +15,19 @@ export type GeneratedRequest = {
   activePrompts: string[]
 }
 
+/** Index of the newest user message, or -1 when there is none. */
+function findLastUserIndex(messages: ChatMessage[]): number {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === 'user') return i
+  }
+  return -1
+}
+
+/** Text part standing in for an image whose payload is not sent to the model. */
+function imagePlaceholder(name: string): string {
+  return `<image>${name}</image>`
+}
+
 export class PromptGenerator {
   private app: App
   private settings: ZhinengchuangzuoSettings
@@ -47,18 +60,14 @@ export class PromptGenerator {
         : this.MAX_CONTEXT_MESSAGES
 
     // Only process the last `take` messages to avoid unnecessary I/O
-    // (compiling files/images for messages that won't be sent is wasteful)
-    const relevantMessages = messages.slice(-take)
+    // (compiling files/images for messages that won't be sent is wasteful).
+    // A non-positive limit sends nothing: `slice(-0)` would otherwise keep the
+    // whole history instead of none.
+    const relevantMessages = take > 0 ? messages.slice(-take) : []
 
-    // Find last user message and extract currentFile
-    let lastUserIndex = -1
-    for (let i = relevantMessages.length - 1; i >= 0; i--) {
-      if (relevantMessages[i].role === 'user') {
-        lastUserIndex = i
-        break
-      }
-    }
-
+    // Single source of truth for "the newest user turn": currentFile, prompt
+    // activation and the image rule all read it from here.
+    const lastUserIndex = findLastUserIndex(relevantMessages)
     const lastUserMsg =
       lastUserIndex >= 0
         ? (relevantMessages[lastUserIndex] as ChatUserMessage)
@@ -99,7 +108,7 @@ export class PromptGenerator {
       const i = userIndices[idx]
       const msg = compiledMessages[i] as ChatUserMessage
       if (!msg.promptContent) {
-        const isLatest = idx === userIndices.length - 1
+        const isLatest = i === lastUserIndex
         const { promptContent } = await this.compileUserMessagePrompt({
           message: msg,
           currentFile: isLatest ? currentFile : undefined,
@@ -115,9 +124,7 @@ export class PromptGenerator {
     return {
       messages: [
         ...(system ? [system.message] : []),
-        ...this.getChatHistoryMessages({
-          messages: compiledMessages,
-        }),
+        ...this.getChatHistoryMessages({ messages: compiledMessages }),
       ],
       activePrompts: system?.activePrompts ?? [],
     }
@@ -322,8 +329,10 @@ export class PromptGenerator {
       const fileParts: string[] = []
 
       uniqueFiles.forEach((file, index) => {
+        // Trim like excerpt text so a trailing newline in the source file does
+        // not add a blank line before </body>.
         fileParts.push(
-          `<file>\n<path>${file.path}</path>\n<body>\n${fileContents[index]}\n</body>\n</file>\n`,
+          `<file>\n<path>${file.path}</path>\n<body>\n${fileContents[index].trim()}\n</body>\n</file>\n`,
         )
       })
       crossDedupPaths.forEach((path) => {
@@ -345,33 +354,49 @@ export class PromptGenerator {
         return `<excerpt>\n<path>${path}</path>\n<text>\n${content}\n</text>\n</excerpt>\n`
       })
 
-      const imageDataUrls = message.mentionables
-        .filter((m): m is MentionableImage => m.type === 'image')
-        .map(({ data }) => data)
+      const imageMentionables = message.mentionables.filter(
+        (m): m is MentionableImage => m.type === 'image',
+      )
 
       const textParts = [
         currentFile && currentFileContent
-          ? `<file type="用户正在浏览">\n<path>${currentFile.path}</path>\n<body>\n${currentFileContent}\n</body>\n</file>\n`
+          ? `<file type="用户正在浏览">\n<path>${currentFile.path}</path>\n<body>\n${currentFileContent.trim()}\n</body>\n</file>\n`
           : '',
         ...fileParts,
         ...blockParts,
         query,
       ].filter((p) => p.length > 0)
 
-      return {
-        promptContent: [
-          ...imageDataUrls.map((data): ContentPart => ({
+      // Only the newest turn sends the pixels. Older turns get a placeholder
+      // part directly, so their base64 payload is never assembled into the
+      // prompt just to be discarded afterwards.
+      const contentParts: ContentPart[] = isLatest
+        ? imageMentionables.map(({ data }): ContentPart => ({
             type: 'image_url',
             image_url: {
               url: data,
             },
-          })),
-          {
+          }))
+        : imageMentionables.map(({ name }): ContentPart => ({
             type: 'text',
-            text: textParts.join('\n'),
-          },
-        ],
+            text: imagePlaceholder(name),
+          }))
+      // An image-only message gets no text part: an empty text block is
+      // rejected by some providers (Anthropic requires text blocks to be
+      // non-empty). An empty editor still yields a lone newline, hence the
+      // whitespace check; `text` itself is pushed unchanged so block spacing
+      // stays as assembled above.
+      const text = textParts.join('\n')
+      if (text.trim()) {
+        contentParts.push({ type: 'text', text })
       }
+
+      // Nothing worth sending (e.g. empty input without mentions).
+      if (contentParts.length === 0) {
+        return { promptContent: null }
+      }
+
+      return { promptContent: contentParts }
     } catch (error) {
       console.error('Failed to compile user message', error)
       throw error

@@ -62,9 +62,6 @@ export function useChatStreamManager({
 
   const submitChatMutation = useMutation({
     mutationFn: async ({ chatMessages }: { chatMessages: ChatMessage[] }) => {
-      const lastMessage = chatMessages.at(-1)
-      if (!lastMessage) return
-
       // Resolved per request instead of being mirrored into state: the client
       // is only needed here, and the old derive-in-an-effect version cost an
       // extra render every time settings changed. Resolution also reports why
