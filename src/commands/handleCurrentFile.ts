@@ -75,15 +75,15 @@ export async function handleCurrentFile(
       return
     }
 
-    const references = resolveHandleReferences(app, file, maxLinks)
-    if (!references) {
+    const scan = resolveHandleReferences(app, file, maxLinks)
+    if (!scan) {
       new Notice('The file is still being indexed, please try again later')
       return
     }
 
-    const { blocks, totalLength } = await collectReferenceBlocks(
+    const { blocks, totalLength, hasMissing } = await collectReferenceBlocks(
       app,
-      references,
+      scan.references,
       fileContent.length,
     )
     if (totalLength > maxChars) {
@@ -91,6 +91,17 @@ export async function handleCurrentFile(
         `The current file and its linked contents exceed the character limit ${maxChars}`,
       )
       return
+    }
+
+    // Warnings come after the character check: a rejected request should not also
+    // report what it will never send, and one run should not stack three notes.
+    if (scan.truncated) {
+      new Notice(
+        `Reached the link limit ${maxLinks}, some links were not included`,
+      )
+    }
+    if (hasMissing) {
+      new Notice('The current file has broken links')
     }
 
     await openChatAndStream(plugin, {

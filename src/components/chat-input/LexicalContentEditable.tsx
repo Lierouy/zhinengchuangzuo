@@ -32,6 +32,7 @@ import MentionPlugin from './mention/MentionPlugin'
 import NoFormatPlugin from './NoFormatPlugin'
 import OnEnterPlugin from './OnEnterPlugin'
 import OnMutationPlugin, { NodeMutations } from './OnMutationPlugin'
+import PlainTextClipboardPlugin from './PlainTextClipboardPlugin'
 import TemplatePlugin from './TemplatePlugin'
 
 export type LexicalContentEditableProps = {
@@ -170,11 +171,13 @@ export default function LexicalContentEditable({
       contentEditable={null}
     >
       {/* 
-        There was two approach to make mentionable node copy and pasteable.
+        Mentions have to survive copy/paste, so the editor is a rich-text one:
         1. use RichTextPlugin and reset text format when paste
           - so I implemented NoFormatPlugin to reset text format when paste
         2. use PlainTextPlugin and override paste command
           - PlainTextPlugin only pastes text, so we need to implement custom paste handler.
+        Clipboard text is intercepted by PlainTextPastePlugin, which keeps
+        Markdown and HTML characters literal instead of importing text/html.
       */}
       <RichTextPlugin
         contentEditable={
@@ -206,6 +209,7 @@ export default function LexicalContentEditable({
       />
       <EditorRefPlugin editorRef={editorRef} />
       <NoFormatPlugin />
+      <PlainTextClipboardPlugin />
       <ImagePastePlugin onCreateImageMentionables={onCreateImageMentionables} />
       <DragDropPaste onCreateImageMentionables={onCreateImageMentionables} />
       <TemplatePlugin />
