@@ -136,7 +136,6 @@ API 密钥保存在 Obsidian 的 SecretStorage 中，插件配置文件只保存
 ├── main.js
 ├── manifest.json
 ├── styles.css
-├── versions.json
 └── user_data/
     ├── config.json
     ├── config.json.bak        # 配置无法解析或发生迁移时生成
