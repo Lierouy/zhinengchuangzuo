@@ -4,7 +4,7 @@ import { memo, useEffect, useRef } from 'react'
 import { useApp } from '../../contexts/app-context'
 
 /** Streaming updates arrive per token; the DOM is rebuilt at most this often. */
-const RENDER_THROTTLE_MS = 350
+const RENDER_THROTTLE_MS = 300
 
 type ObsidianMarkdownProps = {
   content: string
@@ -45,7 +45,7 @@ const ObsidianMarkdown = memo(function ObsidianMarkdown({
     // `MarkdownRenderer` attaches the render children created by plugins to the
     // component it is given. Using a throwaway component per pass and unloading
     // it before the next one keeps those children from piling up while a
-    // response streams (this component re-renders every ~350ms).
+    // response streams (this component re-renders every ~300ms).
     let renderComponent: Component | null = null
 
     const renderOnce = async () => {
