@@ -78,6 +78,8 @@ export type ChatRef = {
   addSelectionToChat: (selectedBlock: MentionableBlockData) => void
   focusMessage: () => void
   startHandleStream: (input: HandleStreamInput) => Promise<void>
+  /** True while a response is streaming in this view. */
+  isStreaming: () => boolean
 }
 
 const Chat = forwardRef<ChatRef>((_props, ref) => {
@@ -190,18 +192,22 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
       forceScrollToTop,
     })
 
-  const { abortActiveStreams, submitChatMutation, registerAbortController } =
-    useChatStreamManager({
-      setChatMessages,
-      autoScrollToBottom,
-      promptGenerator,
-    })
+  const {
+    abortActiveStreams,
+    hasActiveStreams,
+    submitChatMutation,
+    registerAbortController,
+  } = useChatStreamManager({
+    setChatMessages,
+    autoScrollToBottom,
+    promptGenerator,
+  })
 
   const { startHandleStream, handleStreamActive } = useHandleStream({
     settings,
     setChatMessages,
     autoScrollToBottom,
-    abortActiveStreams,
+    hasActiveStreams,
     registerAbortController,
   })
 
@@ -482,6 +488,7 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
       chatUserInputRefs.current.get(focusedMessageId)?.focus()
     },
     startHandleStream,
+    isStreaming: hasActiveStreams,
   }))
 
   return (

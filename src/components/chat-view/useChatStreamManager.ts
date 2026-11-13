@@ -19,6 +19,8 @@ type UseChatStreamManagerParams = {
 
 export type UseChatStreamManager = {
   abortActiveStreams: () => number
+  /** True while any response (chat or handle) is streaming in this view. */
+  hasActiveStreams: () => boolean
   submitChatMutation: UseMutationResult<
     void,
     Error,
@@ -49,6 +51,16 @@ export function useChatStreamManager({
     activeStreamAbortControllersRef.current = []
     return controllers.length
   }, [])
+
+  /**
+   * Read from the ref instead of React state so the answer is accurate in the
+   * same tick a stream starts: the controller is registered synchronously
+   * before the first `await` of the mutation.
+   */
+  const hasActiveStreams = useCallback(
+    (): boolean => activeStreamAbortControllersRef.current.length > 0,
+    [],
+  )
 
   const registerAbortController = useCallback((c: AbortController) => {
     activeStreamAbortControllersRef.current.push(c)
@@ -137,6 +149,7 @@ export function useChatStreamManager({
 
   return {
     abortActiveStreams,
+    hasActiveStreams,
     submitChatMutation,
     registerAbortController,
   }

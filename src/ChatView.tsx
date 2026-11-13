@@ -102,6 +102,10 @@ export class ChatView extends ItemView {
     await this.chatRef.current?.startHandleStream(input)
   }
 
+  isStreaming(): boolean {
+    return this.chatRef.current?.isStreaming() ?? false
+  }
+
   addSelectionToChat(selectedBlock: MentionableBlockData) {
     this.chatRef.current?.addSelectionToChat(selectedBlock)
   }

@@ -104,15 +104,9 @@ export function useChatHistory(): UseChatHistory {
         return
       }
 
-      const firstUserMessage = messages.find((v) => v.role === 'user')
       const created = await chatManager.createChat({
         id,
-        title: firstUserMessage?.content
-          ? editorStateToPlainText(firstUserMessage.content).substring(
-              0,
-              MAX_NAME_LENGTH,
-            )
-          : 'New chat',
+        title: deriveChatTitle(messages),
         messages: serializedMessages,
       })
       knownConversationIds.current.add(id)
@@ -208,6 +202,28 @@ export function useChatHistory(): UseChatHistory {
     refreshChatList: fetchChatList,
     cancelPendingSaves,
   }
+}
+
+const FALLBACK_CHAT_TITLE = 'New chat'
+
+/**
+ * Title taken from the first message, whichever role it has. The "handle this
+ * file" command can create a conversation that starts with an assistant answer,
+ * and it must still get a readable title. `ChatManager` rejects empty titles,
+ * so a message without usable text falls back to a generic name.
+ */
+export const deriveChatTitle = (messages: ChatMessage[]): string => {
+  const first = messages[0]
+  if (!first) return FALLBACK_CHAT_TITLE
+
+  const text =
+    first.role === 'user'
+      ? first.content
+        ? editorStateToPlainText(first.content)
+        : ''
+      : first.content
+
+  return text.trim().substring(0, MAX_NAME_LENGTH) || FALLBACK_CHAT_TITLE
 }
 
 const serializeChatMessage = (message: ChatMessage): SerializedChatMessage => {

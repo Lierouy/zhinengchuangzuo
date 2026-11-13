@@ -1,4 +1,3 @@
-import { Notice } from 'obsidian'
 import { useCallback, useState } from 'react'
 
 import { useApp } from '../../contexts/app-context'
@@ -19,7 +18,7 @@ type UseHandleStreamParams = {
   settings: ZhinengchuangzuoSettings
   setChatMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>
   autoScrollToBottom: () => void
-  abortActiveStreams: () => number
+  hasActiveStreams: () => boolean
   registerAbortController: (controller: AbortController) => () => void
 }
 
@@ -39,7 +38,7 @@ export function useHandleStream({
   settings,
   setChatMessages,
   autoScrollToBottom,
-  abortActiveStreams,
+  hasActiveStreams,
   registerAbortController,
 }: UseHandleStreamParams): UseHandleStream {
   const app = useApp()
@@ -47,13 +46,13 @@ export function useHandleStream({
 
   const startHandleStream = useCallback(
     async (input: HandleStreamInput) => {
+      // The handle answer is written into the same message list as a chat
+      // answer, so the two can never run at the same time. A running response is
+      // left untouched: the command is dropped silently and the user retries
+      // once it finished or was stopped.
+      if (hasActiveStreams()) return
+
       try {
-        // The handle flow writes into the view's message list, so any answer
-        // still streaming has to stop. Tell the user: the aborted answer is
-        // kept as it was, not silently dropped.
-        if (abortActiveStreams() > 0) {
-          new Notice('The running response was stopped to process the file')
-        }
         setHandleStreamActive(true)
 
         const client = resolveChatModelClient(settings, app)
@@ -105,7 +104,7 @@ export function useHandleStream({
     },
     [
       app,
-      abortActiveStreams,
+      hasActiveStreams,
       registerAbortController,
       setChatMessages,
       autoScrollToBottom,

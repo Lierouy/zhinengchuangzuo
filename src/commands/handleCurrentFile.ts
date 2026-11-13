@@ -31,6 +31,18 @@ async function resolveSystemPrompt(
 }
 
 /**
+ * True while the chat view is answering. The handle command is dropped silently
+ * in that case (no notice, no interrupt) and can be retried once the answer
+ * finished or was stopped.
+ */
+function isChatStreaming(plugin: ZhinengchuangzuoPlugin): boolean {
+  const leaf = plugin.app.workspace
+    .getLeavesOfType(CHAT_VIEW_TYPE)
+    .find((candidate) => candidate.view instanceof ChatView)
+  return leaf?.view instanceof ChatView && leaf.view.isStreaming()
+}
+
+/**
  * "Handle current file" command: builds a single prompt from the active file
  * plus the notes it links to, then streams the result into the chat view.
  */
@@ -38,6 +50,9 @@ export async function handleCurrentFile(
   plugin: ZhinengchuangzuoPlugin,
 ): Promise<void> {
   if (plugin.handleInProgress) return
+  // Checked before reading any file or showing any notice: a running answer must
+  // not be interrupted, and the command simply does nothing while it streams.
+  if (isChatStreaming(plugin)) return
   plugin.handleInProgress = true
 
   try {
@@ -81,12 +96,13 @@ export async function handleCurrentFile(
       return
     }
 
-    const { blocks, totalLength, hasMissing } = await collectReferenceBlocks(
+    const { blocks, hasMissing, exceeded } = await collectReferenceBlocks(
       app,
       scan.references,
       fileContent.length,
+      maxChars,
     )
-    if (totalLength > maxChars) {
+    if (exceeded) {
       new Notice(
         `The current file and its linked contents exceed the character limit ${maxChars}`,
       )
