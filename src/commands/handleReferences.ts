@@ -26,12 +26,14 @@ type Candidate =
 const FILE_EXTENSION = /\.[^./\\]+$/
 
 /**
- * Vault paths are case-insensitive in Obsidian, so `[[Book]]` and `[[bOOK]]`
- * name the same missing file and share one note. Headings and block ids are
- * matched case-sensitively by `resolveSubpath`, so they keep their own casing.
+ * Key of a link to a file that could not be resolved, so only the written path
+ * is left to compare: `#subpath` and `|alias` are already stripped, the `.md`
+ * suffix is dropped because `[[Note]]` and `[[Note.md]]` name the same file, and
+ * case is ignored because vault paths are. Headings and block ids are matched
+ * case-sensitively by `resolveSubpath`, so they keep their own casing.
  */
 function filePathKey(path: string): string {
-  return path.trim().toLowerCase()
+  return path.trim().replace(/\.md$/i, '').toLowerCase()
 }
 
 /** True for paths that name a non-markdown file, e.g. `folder/image.png`. */

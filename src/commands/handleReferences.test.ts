@@ -117,6 +117,20 @@ describe('resolveHandleReferences', () => {
     expect(scan.truncated).toBe(false)
   })
 
+  it('collapses broken links that differ only in the md suffix', () => {
+    const { app, source } = createApp({
+      links: [{ link: 'Notes/Book' }, { link: 'Notes/Book.MD', offset: 20 }],
+    })
+
+    const scan = expectScan(resolveHandleReferences(app, source, 30))
+
+    expect(scan.references).toHaveLength(1)
+    expect(scan.references[0]).toMatchObject({
+      kind: 'missing-file',
+      link: '[[Notes/Book]]',
+    })
+  })
+
   it('keeps heading and block links case-sensitive', () => {
     const { app, source } = createApp({
       links: [

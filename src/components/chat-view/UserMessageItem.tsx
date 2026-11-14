@@ -158,7 +158,7 @@ function UserMessageItem({
             onClick={written ? undefined : handleWrite}
             className="clickable-icon"
             disabled={isLoading}
-            aria-label="添加"
+            aria-label="追加"
           >
             {written ? <Check size={12} /> : <FileInput size={12} />}
           </button>

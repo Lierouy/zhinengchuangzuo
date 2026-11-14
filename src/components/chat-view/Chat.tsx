@@ -213,6 +213,17 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
 
   const isBusy = submitChatMutation.isPending || handleStreamActive
 
+  // Only the answer being written locks its action buttons. `runCompletion`
+  // appends the assistant message with the first chunk and replaces it in place
+  // afterwards, so it is always the last message; before that chunk there is no
+  // half-written answer to lock. Deleting the locked one would just make the
+  // next chunk append it again, while older messages stay usable.
+  const streamingMessageId = useMemo(() => {
+    if (!isBusy) return null
+    const last = chatMessages[chatMessages.length - 1]
+    return last?.role === 'assistant' ? last.id : null
+  }, [chatMessages, isBusy])
+
   // Stop whatever is still running when the view closes. React ignores late
   // state updates after unmount, so no mounted flag is needed.
   useEffect(
@@ -609,7 +620,7 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
               <UserMessageItem
                 key={messageOrGroup.id}
                 message={messageOrGroup}
-                isLoading={isBusy}
+                isLoading={messageOrGroup.id === streamingMessageId}
                 onDelete={handleDeleteMessage}
               />
             ) : (
@@ -617,7 +628,7 @@ const Chat = forwardRef<ChatRef>((_props, ref) => {
                 <UserMessageItem
                   key={msg.id}
                   message={msg}
-                  isLoading={isBusy}
+                  isLoading={msg.id === streamingMessageId}
                   onDelete={handleDeleteMessage}
                 />
               ))
