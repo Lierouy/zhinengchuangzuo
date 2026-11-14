@@ -1,6 +1,5 @@
 export type LLMResponseBase = {
   id: string
-  created?: number
   model: string
   usage?: ResponseUsage
 }
@@ -15,10 +14,15 @@ export type LLMResponseStreaming = LLMResponseBase & {
   object: 'chat.completion.chunk'
 }
 
+/**
+ * Only the two counts the plugin shows are kept. Providers return more detail
+ * (`cached_tokens`, `reasoning_tokens`, `total_tokens`, timings), but nothing
+ * here reads it, so it is dropped where the payload enters: see
+ * `utils/llm/usage.ts`.
+ */
 export type ResponseUsage = {
   prompt_tokens: number
   completion_tokens: number
-  total_tokens: number
 }
 
 type NonStreamingChoice = {

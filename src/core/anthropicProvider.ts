@@ -145,13 +145,11 @@ export function createAnthropicProvider(
             },
           },
         ],
-        created: Date.now(),
         model: requestModel,
         object: 'chat.completion',
         usage: {
           prompt_tokens: promptTokens,
           completion_tokens: usage.output_tokens,
-          total_tokens: promptTokens + usage.output_tokens,
         },
       }
     } catch (error: unknown) {
@@ -225,13 +223,11 @@ async function* streamResponseGenerator(
             delta: { role: 'assistant', content: '' },
           },
         ],
-        created: Date.now(),
         model,
         object: 'chat.completion.chunk',
         usage: {
           prompt_tokens: inputTokens,
           completion_tokens: chunk.message.usage.output_tokens,
-          total_tokens: inputTokens + chunk.message.usage.output_tokens,
         },
       }
     }
@@ -248,7 +244,6 @@ async function* streamResponseGenerator(
             delta: { content: chunk.delta.text },
           },
         ],
-        created: Date.now(),
         model,
         object: 'chat.completion.chunk',
       }
@@ -273,7 +268,6 @@ async function* streamResponseGenerator(
             delta: { reasoning: reasoningText },
           },
         ],
-        created: Date.now(),
         model,
         object: 'chat.completion.chunk',
       }
@@ -289,13 +283,11 @@ async function* streamResponseGenerator(
             delta: { content: null },
           },
         ],
-        created: Date.now(),
         model,
         object: 'chat.completion.chunk',
         usage: {
           prompt_tokens: inputTokens,
           completion_tokens: outputTokens,
-          total_tokens: inputTokens + outputTokens,
         },
       }
     }

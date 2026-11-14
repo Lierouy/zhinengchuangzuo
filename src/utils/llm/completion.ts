@@ -8,12 +8,7 @@ import {
 import { ResponseUsage } from '../../types/response'
 
 import { createTagInterceptor, interceptTagContent } from './reasoning'
-
-const EMPTY_USAGE: ResponseUsage = {
-  prompt_tokens: 0,
-  completion_tokens: 0,
-  total_tokens: 0,
-}
+import { EMPTY_USAGE, mergeUsage, toUsage } from './usage'
 
 /** Appended to the answer when the model hit its output limit. */
 const TRUNCATION_SUFFIX = '\n(截断)'
@@ -130,6 +125,9 @@ async function runStreamingCompletion({
         metadata: {
           usage: { ...EMPTY_USAGE },
           model: model.model,
+          // Local clock, in milliseconds: the moment the answer started to
+          // arrive. Provider timestamps are not portable (Anthropic has none).
+          createdAt: Date.now(),
           ...(activePrompts?.length ? { activePrompts } : {}),
         },
       }
@@ -145,13 +143,7 @@ async function runStreamingCompletion({
       reasoning: intercepted.reasoning || undefined,
       metadata: {
         ...assistantMessage.metadata,
-        usage: {
-          prompt_tokens:
-            chunk.usage?.prompt_tokens ?? currentUsage.prompt_tokens,
-          completion_tokens:
-            chunk.usage?.completion_tokens ?? currentUsage.completion_tokens,
-          total_tokens: chunk.usage?.total_tokens ?? currentUsage.total_tokens,
-        },
+        usage: mergeUsage(currentUsage, chunk.usage),
       },
     }
 
@@ -228,10 +220,12 @@ async function runNonStreamingCompletion({
     content,
     reasoning: intercepted.reasoning || undefined,
     metadata: {
-      usage: response.usage ?? { ...EMPTY_USAGE },
+      usage: toUsage(response.usage),
       // Same configured name the streaming path records; providers may echo an
       // internal model id in `response.model` instead.
       model: model.model,
+      // Same local-clock millisecond timestamp as the streaming path.
+      createdAt: Date.now(),
       ...(activePrompts?.length ? { activePrompts } : {}),
     },
   })

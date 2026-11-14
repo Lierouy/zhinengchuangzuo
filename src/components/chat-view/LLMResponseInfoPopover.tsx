@@ -2,9 +2,9 @@ import * as Popover from '@radix-ui/react-popover'
 import {
   Activity,
   ArrowDownFromLine,
-  ArrowUpDown,
   ArrowUpToLine,
   CircleGauge,
+  Hourglass,
 } from 'lucide-react'
 
 import { ResponseUsage } from '../../types/response'
@@ -12,11 +12,24 @@ import { ResponseUsage } from '../../types/response'
 type LLMResponseInfoProps = {
   usage: ResponseUsage | null
   model: string | null
+  /** Local epoch milliseconds; hidden when the message predates this field. */
+  createdAt?: number
+}
+
+const pad = (value: number): string => String(value).padStart(2, '0')
+
+/** `YYYY-MM-DD | HH:mm:ss` on a 24-hour clock, in the local time zone. */
+export function formatTimestamp(timestamp: number): string {
+  const date = new Date(timestamp)
+  const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+  const time = `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+  return `${day} | ${time}`
 }
 
 export default function LLMResponseInfoPopover({
   usage,
   model,
+  createdAt,
 }: LLMResponseInfoProps) {
   return (
     <Popover.Root>
@@ -49,11 +62,11 @@ export default function LLMResponseInfoPopover({
                   {usage.completion_tokens}
                 </span>
               </div>
-              <div className="zncz-llm-info-token-row zncz-llm-info-token-total">
-                <ArrowUpDown className="zncz-llm-info-icon--total" />
-                <span>合计：</span>
+              <div className="zncz-llm-info-token-row zncz-llm-info-token-time">
+                <Hourglass className="zncz-llm-info-icon--time" />
+                <span>时间：</span>
                 <span className="zncz-llm-info-token-value">
-                  {usage.total_tokens}
+                  {createdAt === undefined ? '' : formatTimestamp(createdAt)}
                 </span>
               </div>
             </div>

@@ -164,7 +164,8 @@ describe('parseNonStreamingResponse', () => {
 
     expect(parsed.choices[0].message.content).toBe('')
     expect(parsed.object).toBe('chat.completion')
-    expect(parsed.usage).toEqual(response.usage)
+    // `total_tokens` from the provider is dropped: nothing reads it.
+    expect(parsed.usage).toEqual({ prompt_tokens: 1, completion_tokens: 2 })
   })
 
   it('prefers an explicitly configured reasoning field', () => {

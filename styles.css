@@ -607,7 +607,7 @@ button.zncz-chat-input-model-select {
   color: var(--text-muted);
 }
 
-.zncz-llm-info-token-total {
+.zncz-llm-info-token-time {
   grid-column: span 2;
   font-weight: var(--font-medium);
 }
@@ -640,7 +640,7 @@ button.zncz-chat-input-model-select {
   color: var(--color-red);
 }
 
-.zncz-llm-info-icon--total {
+.zncz-llm-info-icon--time {
   height: var(--size-4-3);
   width: var(--size-4-3);
   color: var(--color-purple);

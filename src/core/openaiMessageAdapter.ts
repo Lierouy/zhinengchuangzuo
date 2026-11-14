@@ -19,6 +19,7 @@ import {
   LLMResponseNonStreaming,
   LLMResponseStreaming,
 } from '../types/response'
+import { toUsage } from '../utils/llm/usage'
 
 export class OpenAIMessageAdapter {
   private customReasoningField?: string
@@ -214,10 +215,9 @@ export class OpenAIMessageAdapter {
           },
         }
       }),
-      created: response.created,
       model: response.model,
       object: 'chat.completion',
-      usage: response.usage,
+      usage: toUsage(response.usage),
     }
   }
 
@@ -240,10 +240,11 @@ export class OpenAIMessageAdapter {
           },
         }
       }),
-      created: chunk.created,
       model: chunk.model,
       object: 'chat.completion.chunk',
-      usage: chunk.usage ?? undefined,
+      // `undefined` means "no usage in this chunk", which the caller merges
+      // without resetting what an earlier chunk already reported.
+      usage: chunk.usage ? toUsage(chunk.usage) : undefined,
     }
   }
 }

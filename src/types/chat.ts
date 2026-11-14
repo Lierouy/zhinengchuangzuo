@@ -16,6 +16,8 @@ export type ChatAssistantMetadata = {
   model?: string
   /** Names of the context prompts that were activated for this request. */
   activePrompts?: string[]
+  /** Local clock, epoch milliseconds, taken when the answer was received. */
+  createdAt?: number
 }
 
 export type ChatAssistantMessage = {

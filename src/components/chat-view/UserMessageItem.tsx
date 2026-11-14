@@ -170,7 +170,11 @@ function UserMessageItem({
             }
             aria-label="详情"
           >
-            <LLMResponseInfoPopover usage={usage} model={modelName} />
+            <LLMResponseInfoPopover
+              usage={usage}
+              model={modelName}
+              createdAt={message.metadata?.createdAt}
+            />
           </div>
         )}
         {onDelete && (
